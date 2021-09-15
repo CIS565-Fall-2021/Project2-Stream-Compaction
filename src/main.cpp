@@ -175,7 +175,10 @@ int main(int argc, char *argv[]) {
   // printArray(count, c, true);
   printCmpLenResult(count, expectedNPOT, b, c);
 
+#if defined(_WIN32)
   system("pause");  // stop Win32 console from closing on exit
+#endif
+
   delete[] a;
   delete[] b;
   delete[] c;
