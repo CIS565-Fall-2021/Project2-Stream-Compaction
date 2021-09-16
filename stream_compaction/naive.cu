@@ -41,9 +41,6 @@ namespace StreamCompaction {
             cudaMalloc((void**)&dev_data2, n * sizeof(int));
             
             timer().startGpuTimer();
-           
-            // map bools to ints
-            kernMapToBoolean<<<fullBlocksPerGrid, threadsPerBlock>>>(n, idata, dev_data1);
             
             // for log iterations, perform scan
             for (int d = 1; d < ilog2ceil(n); d++){
@@ -55,8 +52,10 @@ namespace StreamCompaction {
                 dev_data2 = tmp;
             }
             timer().endGpuTimer();
-            
-            // cudaMemcpy dev_data2 to odata (device -> host)
+            // copy to odata to return
+            cudaMemcpy(odata, dev_data2, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaFree(dev_data1);
+            cudaFree(dev_data2);
         }
     }
 }
