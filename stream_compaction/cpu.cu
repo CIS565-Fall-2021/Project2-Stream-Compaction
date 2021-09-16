@@ -12,6 +12,18 @@ PerformanceTimer &timer() {
 }
 
 /**
+ * CPU scan core function.
+ * This function runs without starting CPU timer.
+ */
+void scan_core(int n, int *odata, const int *idata) {
+  int sum = 0;
+  for (int i = 0; i < n; ++i) {
+    odata[i] = sum;
+    sum += idata[i];
+  }
+}
+
+/**
  * CPU scan (prefix sum).
  * For performance analysis, this is supposed to be a simple for loop.
  * (Optional) For better understanding before starting moving to GPU, you can
@@ -19,7 +31,7 @@ PerformanceTimer &timer() {
  */
 void scan(int n, int *odata, const int *idata) {
   timer().startCpuTimer();
-  // TODO
+  scan_core(n, odata, idata);
   timer().endCpuTimer();
 }
 
@@ -30,9 +42,14 @@ void scan(int n, int *odata, const int *idata) {
  */
 int compactWithoutScan(int n, int *odata, const int *idata) {
   timer().startCpuTimer();
-  // TODO
+  int outarray_len = 0;
+  for (int i = 0; i < n; ++i) {
+    if (idata[i] != 0) {
+      odata[outarray_len++] = idata[i];
+    }
+  }
   timer().endCpuTimer();
-  return -1;
+  return outarray_len;
 }
 
 /**
@@ -42,9 +59,29 @@ int compactWithoutScan(int n, int *odata, const int *idata) {
  */
 int compactWithScan(int n, int *odata, const int *idata) {
   timer().startCpuTimer();
-  // TODO
+
+  // create bool array b
+  int *b = (int *)malloc(n * sizeof(int));
+  std::memset(b, 0, n * sizeof(int));
+  for (int i = 0; i < n; ++i) {
+    if (idata[i] != 0) b[i] = 1;
+  }
+
+  // exclusive scan bool array
+  int *scan_b = (int *)malloc(n * sizeof(int));
+  scan_core(n, scan_b, b);
+  int outarray_len = b[n - 1] + scan_b[n - 1];
+
+  // copy selected array into out array
+  for (int i = 0; i < n; ++i) {
+    if (b[i]) odata[scan_b[i]] = idata[i];
+  }
+
+  free(b);
+  free(scan_b);
+
   timer().endCpuTimer();
-  return -1;
+  return outarray_len;
 }
 }  // namespace CPU
 }  // namespace StreamCompaction
