@@ -19,7 +19,10 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            odata[0] = 0;
+            for (int ind = 1; ind < n; ind++) {
+                odata[ind] = idata[ind] + odata[ind - 1];
+            }
             timer().endCpuTimer();
         }
 
@@ -30,9 +33,15 @@ namespace StreamCompaction {
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            int count = 0;
+            for (int ind = 0; ind < n; ind++) {
+                if (idata[ind] != 0) {
+                    odata[count] = idata[ind];
+                    count++;
+                }
+            }
             timer().endCpuTimer();
-            return -1;
+            return count;
         }
 
         /**
@@ -42,9 +51,33 @@ namespace StreamCompaction {
          */
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            
+            int* bool_list = new int[n];
+            int* scan_list = new int[n];
+            for (int ind = 0; ind < n; ind++) {
+                if (idata[ind] == 0) {
+                    bool_list[ind] = 0;
+                }
+                else {
+                    bool_list[ind] = 1;
+                }
+            }
+            
+            scan_list[0] = 0;
+            for (int ind = 1; ind < n; ind++) {
+                scan_list[ind] = bool_list[ind] + scan_list[ind - 1];
+            }
+
+            int count = 0;
+            for (int ind = 0; ind < n; ind++) {
+                if (bool_list[ind] == 1) {
+                    printf("%d ", idata[ind]);
+                    odata[scan_list[ind]] = idata[ind];
+                    count++;
+                }
+            }
             timer().endCpuTimer();
-            return -1;
+            return count;
         }
     }
 }
