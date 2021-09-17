@@ -19,7 +19,10 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            odata[0] = 0;
+            for (int i = 0; i < n; i++) {
+                odata[i + 1] = odata[i] + idata[i];
+            }
             timer().endCpuTimer();
         }
 
@@ -30,9 +33,15 @@ namespace StreamCompaction {
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            int index = 0;
+            for (int i = 0; i < n; i++) {
+                if (idata[i] != 0) {
+                    odata[index] = idata[i];
+                    index++;
+                }
+            }
             timer().endCpuTimer();
-            return -1;
+            return index;
         }
 
         /**
@@ -42,9 +51,24 @@ namespace StreamCompaction {
          */
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            // Compute Exclusive Prefix Sum for the idata's boolean array
+            odata[0] = 0;
+            for (int i = 0; i < n; i++) {
+                int boolean = (idata[i] == 0) ? 0 : 1;
+                odata[i + 1] = odata[i] + boolean;
+            }
+            
+            int compact_size = odata[n - 1];
+            // Compact
+            for (int i = 0; i < n; i++) {
+                if (idata[i] != 0) {
+                    int index = odata[i];
+                    odata[index] = idata[i];
+                }
+            }
+            
             timer().endCpuTimer();
-            return -1;
+            return compact_size;
         }
     }
 }
