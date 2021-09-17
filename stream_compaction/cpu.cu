@@ -1,6 +1,6 @@
 #include <cstdio>
 #include "cpu.h"
-
+#include <iostream>
 #include "common.h"
 
 namespace StreamCompaction {
@@ -55,23 +55,19 @@ namespace StreamCompaction {
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
             
-            // map bools to 0s and 1s
-            int intData[n];
-            for (int i = 0; i < n; i++){
-                intData[i] = idata[i] ? 1 : 0;   
+            // scan array, replacing true vals with 1s
+            odata[0] = 0;
+            for (int i = 0; i < n; i++) {
+                int elem = idata[i] ? 1 : 0;  
+                odata[i + 1] = odata[i] + elem;
             }
             
-            // scan resulting array
-            int scannedData[n];
-            scan(n, &scannedData[0], &intData[0]);
-            
             // use scatter to produce output
-            int size = scannedData[n-1] - 1;
-            int scatter_i = 0;
+            int size = odata[n-1];
             for (int i = 0; i < n; i++){
                 if (idata[i]){ 
-                    odata[scatter_i] = idata[i]; 
-                    scatter_i++;
+                    int outIndex = odata[i];
+                    odata[outIndex] = 1; 
                 }    
             }
             

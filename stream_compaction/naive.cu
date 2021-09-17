@@ -3,7 +3,7 @@
 #include "common.h"
 #include "naive.h"
 
-#define blockSize 128;
+#define blockSize 128
 dim3 threadsPerBlock(blockSize);
 
 int *dev_data1;
@@ -18,7 +18,7 @@ namespace StreamCompaction {
             return timer;
         }
         __global__ void kernScan(int n, int *odata, int *idata, int d){
-            int index = (blockDim.x * blockIdx.x) + threadIdx.x;
+            /*int index = (blockDim.x * blockIdx.x) + threadIdx.x;
             
             int offset = pow(2, d-1);
             if (index >= offset){
@@ -26,7 +26,7 @@ namespace StreamCompaction {
             }
             else{
                 odata[index] = idata[index];   
-            }
+            }*/
         }
 
         /**
@@ -35,7 +35,7 @@ namespace StreamCompaction {
         void scan(int n, int *odata, const int *idata) {
             
             // allocate memory
-            dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
+           /* dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
             cudaMalloc((void**)&dev_data1, n * sizeof(int));
             checkCUDAErrorWithLine("cudaMalloc dev_data1 failed!");
             cudaMalloc((void**)&dev_data2, n * sizeof(int));
@@ -55,7 +55,7 @@ namespace StreamCompaction {
             // copy to odata to return
             cudaMemcpy(odata, dev_data2, n * sizeof(int), cudaMemcpyDeviceToHost);
             cudaFree(dev_data1);
-            cudaFree(dev_data2);
+            cudaFree(dev_data2);*/
         }
     }
 }

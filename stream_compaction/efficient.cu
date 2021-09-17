@@ -19,15 +19,15 @@ namespace StreamCompaction {
         }
 
         __global__ void kernParallelReduction(int n, int *data, int d){
-            int index = (blockDim.x * blockIdx.x) + threadIdx.x;
-            data[index + pow(2, d+1) - 1] += data[index + pow(2, d) - 1];
+            //int index = (blockDim.x * blockIdx.x) + threadIdx.x;
+            //data[index + pow(2, d+1) - 1] += data[index + pow(2, d) - 1];
         }
 
         __global__ void kernDownSweep(int n, int *data, int d){
-            int index = (blockDim.x + blockIdx.x) + threadIdx.x;
-            int leftChild = data[index + pow(2, d) - 1];
-            data[index + pow(2, d) - 1] = data[index + pow(2, d+1) - 1];
-            data[index + pow(2, d+1) - 1] += leftChild;
+            //int index = (blockDim.x + blockIdx.x) + threadIdx.x;
+            //int leftChild = data[index + pow(2, d) - 1];
+           // data[index + pow(2, d) - 1] = data[index + pow(2, d+1) - 1];
+           // data[index + pow(2, d+1) - 1] += leftChild;
         }
         
         /**
@@ -36,7 +36,7 @@ namespace StreamCompaction {
         void scan(int n, int *odata, const int *idata) 
         {
             // allocate memory
-            dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
+            /*dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
             cudaMalloc((void **)&dev_data_scan, n * sizeof(int));
             checkCUDAErrorWithLine("cudaMalloc dev_data failed!");
 
@@ -55,7 +55,7 @@ namespace StreamCompaction {
             timer().endGpuTimer();
 
             cudaMemcpy(odata, dev_data_scan, n * sizeof(int), cudaMemcpyDeviceToHost);
-            cudaFree(dev_data_scan);
+            cudaFree(dev_data_scan);*/
         }
 
         /**
@@ -69,7 +69,7 @@ namespace StreamCompaction {
          */
         int compact(int n, int *odata, const int *idata) {
             // allocate memory
-            dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
+            /*dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
             cudaMalloc((void **)&dev_data_compact, n * sizeof(int));
             checkCUDAErrorWithLine("cudaMalloc dev_data failed!");
 
@@ -87,7 +87,8 @@ namespace StreamCompaction {
 
             cudaFree(dev_data_compact);
 
-            return dev_data_compact[n-1];
+            return dev_data_compact[n-1];*/
+            return 0;
         }
     }
 }
