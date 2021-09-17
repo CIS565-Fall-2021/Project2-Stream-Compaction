@@ -2,7 +2,6 @@
 #include <cuda_runtime.h>
 #include "common.h"
 #include "naive.h"
-#include <cmath>
 
 #ifndef BLOCKSIZE
 #define BLOCKSIZE 128
@@ -25,8 +24,8 @@ namespace StreamCompaction {
                 return;
             }
 
-            if (index >= pow(2, d-1)) {
-                odata[index] = idata[index - (int)pow(2, d - 1)] + idata[index];
+            if (index >= (1 << d-1)) {
+                odata[index] = idata[index - (1 << d - 1)] + idata[index];
             }
             else {
                 odata[index] = idata[index];
@@ -46,22 +45,22 @@ namespace StreamCompaction {
             int* dev_writeable; 
             int* swp; // for ping-ponging odata and odata2
 
-            //int p2Pad = ilog2ceil(n);
+            int paddedN = 1 << ilog2ceil(n);
 
-            cudaMalloc((void**)&dev_readable, n * sizeof(int));
-            cudaMalloc((void**)&dev_writeable, n * sizeof(int));
+            cudaMalloc((void**)&dev_readable, paddedN * sizeof(int));
+            cudaMalloc((void**)&dev_writeable, paddedN * sizeof(int));
 
-            cudaMemcpy(dev_readable, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_readable, idata, paddedN * sizeof(int), cudaMemcpyHostToDevice);
 
             int numKernels = ilog2ceil(n);
 
             // --- begin iterative all-prefix-sum
 
-            for (int d = 1; d <= log2(n); d++) {
+            for (int d = 1; d <= log2(paddedN); d++) {
 
                 // --- call scan ---
 
-				kernNaiveScan <<<n, BLOCKSIZE>>> (n, dev_writeable, dev_readable, d);
+				kernNaiveScan <<<n, BLOCKSIZE>>> (paddedN, dev_writeable, dev_readable, d);
 				checkCUDAErrorFn("naiveScan failed", "naive.cu", 63);
 				cudaDeviceSynchronize();
 
@@ -74,8 +73,10 @@ namespace StreamCompaction {
 
             timer().endGpuTimer();
 
+            // this is an exclusive scan, so the first elem should be 0
+            // and we shift everything (except the last elem) one index right
             odata[0] = 0;
-            cudaMemcpy(odata+1, dev_readable, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata+1, dev_readable, (n-1) * sizeof(int), cudaMemcpyDeviceToHost);
             cudaFree(dev_readable);
             cudaFree(dev_writeable);
         }
