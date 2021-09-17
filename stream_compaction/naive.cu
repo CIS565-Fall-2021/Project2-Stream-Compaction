@@ -18,15 +18,25 @@ namespace StreamCompaction {
             return timer;
         }
         __global__ void kernScan(int n, int *odata, int *idata, int d){
-            /*int index = (blockDim.x * blockIdx.x) + threadIdx.x;
+            int index = (blockDim.x * blockIdx.x) + threadIdx.x;
             
+            // shift array for exclusive scan
+            if (index + 1 >= n) {
+                return;
+            }
+            // if first elem, should be 0
+            if (index == 0) {
+                odata[index] = 0;
+            }
+
             int offset = pow(2, d-1);
+            int nextIndex = index + 1;
             if (index >= offset){
-                odata[index] = odata[index - offset] + idata[index];  
+                odata[nextIndex] = odata[nextIndex - offset] + idata[index];  
             }
             else{
-                odata[index] = idata[index];   
-            }*/
+                odata[nextIndex] = idata[index];   
+            }
         }
 
         /**
@@ -35,16 +45,16 @@ namespace StreamCompaction {
         void scan(int n, int *odata, const int *idata) {
             
             // allocate memory
-           /* dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
+            dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
             cudaMalloc((void**)&dev_data1, n * sizeof(int));
-            checkCUDAErrorWithLine("cudaMalloc dev_data1 failed!");
             cudaMalloc((void**)&dev_data2, n * sizeof(int));
+            cudaMemcpy(dev_data1, idata, n * sizeof(int), cudaMemcpyHostToDevice);
             
             timer().startGpuTimer();
             
             // for log iterations, perform scan
             for (int d = 1; d < ilog2ceil(n); d++){
-                kernScan<<<fullBlocksPerGrid, threadsPerBlock>>>(n, dev_data2, dev_data1, d);
+                kernScan << <fullBlocksPerGrid, threadsPerBlock >> > (n, dev_data2, dev_data1, d);
                 
                 // ping-pong
                 int *tmp = dev_data1;
@@ -55,7 +65,7 @@ namespace StreamCompaction {
             // copy to odata to return
             cudaMemcpy(odata, dev_data2, n * sizeof(int), cudaMemcpyDeviceToHost);
             cudaFree(dev_data1);
-            cudaFree(dev_data2);*/
+            cudaFree(dev_data2);
         }
     }
 }
