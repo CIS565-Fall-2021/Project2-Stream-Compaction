@@ -18,8 +18,16 @@ namespace StreamCompaction {
          * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
          */
         void scan(int n, int *odata, const int *idata) {
+          
             timer().startCpuTimer();
             // TODO
+
+            odata[0] = 0;
+            for (int i = 1; i < n; i++)
+            {
+                odata[i] = odata[i - 1] + idata[i-1];
+            }
+
             timer().endCpuTimer();
         }
 
@@ -31,8 +39,20 @@ namespace StreamCompaction {
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
             // TODO
+            int ans[300];
+            int outIndex=0;
+            for (int i = 0; i < n; i++)
+            {
+                if (idata[i] != 0)
+                {
+                    odata[outIndex] = idata[i];
+                    ans[outIndex] = idata[i];
+                    outIndex++;
+                }
+            }
+
             timer().endCpuTimer();
-            return -1;
+            return outIndex;
         }
 
         /**
@@ -41,10 +61,43 @@ namespace StreamCompaction {
          * @returns the number of elements remaining after compaction.
          */
         int compactWithScan(int n, int *odata, const int *idata) {
+
+            int arr_b[300];
+            int arr_c[300]; // exclusive array
             timer().startCpuTimer();
+
+            int finalIndex = 0;
+#pragma region Powerof2
+
+            for (int i = 0; i < n; i++)
+            {
+                if (idata[i] == 0)
+                {
+                    arr_b[i] = 0;
+                    continue;
+                }
+                arr_b[i] = 1;
+            }
+            arr_c[0] = 0;
+            for (int i = 1; i < n; i++)
+            {
+                arr_c[i] = arr_b[i - 1] + arr_c[i - 1];
+            }
+
+            for (int i = 0; i < n; i++)
+            {
+                if (arr_b[i] == 0)
+                {
+                    continue;
+                }
+                int index = arr_c[i];
+                odata[index] = idata[i];
+                finalIndex = index;
+            }
+#pragma endregion
             // TODO
             timer().endCpuTimer();
-            return -1;
+            return finalIndex+1;
         }
     }
 }
