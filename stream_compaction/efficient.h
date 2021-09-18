@@ -9,5 +9,14 @@ namespace StreamCompaction {
         void scan(int n, int *odata, const int *idata);
 
         int compact(int n, int *odata, const int *idata);
+
+        void scanBatch(int n, int* odata, const int* idata, bool splitOnce = true);
+
+        int compactBatch(int n, int *odata, const int *idata, bool splitOnce = true);
+    }
+    namespace EfficientTest {
+        StreamCompaction::Common::PerformanceTimer& timer();
+
+        void scan(int n, int *odata, const int *idata);
     }
 }

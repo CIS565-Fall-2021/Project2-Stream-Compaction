@@ -13,7 +13,7 @@
 #include <stream_compaction/thrust.h>
 #include "testing_helpers.hpp"
 
-const int SIZE = 1 << 8; // feel free to change the size of array
+const int SIZE = 1 << 20;//1 << 24;//1 << 22;//1 << 20;//1 << 18;//1 << 16;//1 << 12;//1 << 3;//1 << 8; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -23,9 +23,9 @@ int main(int argc, char* argv[]) {
     // Scan tests
 
     printf("\n");
-    printf("****************\n");
-    printf("** SCAN TESTS **\n");
-    printf("****************\n");
+    printf("***************************\n");
+    printf("** SCAN TESTS %010d **\n", SIZE);
+    printf("***************************\n");
 
     genArray(SIZE - 1, a, 50);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
     printDesc("work-efficient scan, power-of-two");
     StreamCompaction::Efficient::scan(SIZE, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(SIZE, c, true);
+    //printArray(SIZE, c, true);//
     printCmpResult(SIZE, b, c);
 
     zeroArray(SIZE, c);
@@ -85,7 +85,7 @@ int main(int argc, char* argv[]) {
     printDesc("thrust scan, power-of-two");
     StreamCompaction::Thrust::scan(SIZE, c, a);
     printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(SIZE, c, true);
+    //printArray(SIZE, c, true);//
     printCmpResult(SIZE, b, c);
 
     zeroArray(SIZE, c);
@@ -95,6 +95,45 @@ int main(int argc, char* argv[]) {
     //printArray(NPOT, c, true);
     printCmpResult(NPOT, b, c);
 
+    /////////////////////////////////////////
+    //if (SIZE <= (1 << 7)) {
+    //    zeroArray(SIZE, c);
+    //    printDesc("work-efficient-test scan, power-of-two");
+    //    StreamCompaction::EfficientTest::scan(SIZE, c, a);
+    //    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //    //printArray(SIZE, c, true);//
+    //    printCmpResult(SIZE, b, c);
+    //}
+
+    //zeroArray(SIZE, c);
+    //printDesc("work-efficient-sh-mem-opt-onesplit scan, power-of-two");
+    //StreamCompaction::Efficient::scanBatch(SIZE, c, a, true);
+    //printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    ////printArray(SIZE, c, true);//
+    //printCmpResult(SIZE, b, c);
+
+    //zeroArray(SIZE, c);
+    //printDesc("work-efficient-sh-mem-opt-onesplit scan, non-power-of-two");
+    //StreamCompaction::Efficient::scanBatch(NPOT, c, a, true);
+    //printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    ////printArray(SIZE, c, true);//
+    //printCmpResult(NPOT, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("work-efficient-sh-mem-recursive scan, power-of-two");
+    StreamCompaction::Efficient::scanBatch(SIZE, c, a, false);
+    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(SIZE, c, true);//
+    printCmpResult(SIZE, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("work-efficient-sh-mem-recursive scan, non-power-of-two");
+    StreamCompaction::Efficient::scanBatch(NPOT, c, a, false);
+    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(SIZE, c, true);//
+    printCmpResult(NPOT, b, c);
+    /////////////////////////////////////////
+
     printf("\n");
     printf("*****************************\n");
     printf("** STREAM COMPACTION TESTS **\n");
@@ -103,7 +142,7 @@ int main(int argc, char* argv[]) {
     // Compaction tests
 
     genArray(SIZE - 1, a, 4);  // Leave a 0 at the end to test that edge case
-    a[SIZE - 1] = 0;
+    a[SIZE - 1] = 4;//0;
     printArray(SIZE, a, true);
 
     int count, expectedCount, expectedNPOT;
@@ -147,7 +186,52 @@ int main(int argc, char* argv[]) {
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
 
-    system("pause"); // stop Win32 console from closing on exit
+    zeroArray(SIZE, c);
+    printDesc("thrust compact, power-of-two");
+    count = StreamCompaction::Thrust::compact(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(count, c, true);//
+    printCmpLenResult(count, expectedCount, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("thrust compact, non-power-of-two");
+    count = StreamCompaction::Thrust::compact(NPOT, c, a);
+    printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(count, c, true);//
+    printCmpLenResult(count, expectedNPOT, b, c);
+
+    /////////////////////////////////////////
+
+    //zeroArray(SIZE, c);
+    //printDesc("work-efficient-sh-mem-opt-onesplit compact, power-of-two");
+    //StreamCompaction::Efficient::compactBatch(SIZE, c, a, true);
+    //printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    ////printArray(SIZE, c, true);//
+    //printCmpLenResult(count, expectedNPOT, b, c);
+
+    //zeroArray(SIZE, c);
+    //printDesc("work-efficient-sh-mem-opt-onesplit compact, non-power-of-two");
+    //StreamCompaction::Efficient::compactBatch(NPOT, c, a, true);
+    //printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    ////printArray(SIZE, c, true);//
+    //printCmpLenResult(count, expectedNPOT, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("work-efficient-sh-mem-recursive compact, power-of-two");
+    StreamCompaction::Efficient::compactBatch(SIZE, c, a, false);
+    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(SIZE, c, true);//
+    printCmpLenResult(count, expectedNPOT, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("work-efficient-sh-mem-recursive compact, non-power-of-two");
+    StreamCompaction::Efficient::compactBatch(NPOT, c, a, false);
+    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(SIZE, c, true);//
+    printCmpLenResult(count, expectedNPOT, b, c);
+    /////////////////////////////////////////
+
+    //system("pause"); // stop Win32 console from closing on exit
     delete[] a;
     delete[] b;
     delete[] c;
