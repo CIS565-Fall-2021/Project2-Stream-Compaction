@@ -19,7 +19,7 @@
  */
 void checkCUDAErrorFn(const char *msg, const char *file = NULL, int line = -1);
 
-inline int ilog2(int x) {
+inline __device__ __host__ int ilog2(int x) {
   int lg = 0;
   while (x >>= 1) {
     ++lg;
@@ -27,7 +27,9 @@ inline int ilog2(int x) {
   return lg;
 }
 
-inline int ilog2ceil(int x) { return x == 1 ? 0 : ilog2(x - 1) + 1; }
+inline __device__ __host__ int ilog2ceil(int x) {
+  return x == 1 ? 0 : ilog2(x - 1) + 1;
+}
 
 namespace StreamCompaction {
 namespace Common {
