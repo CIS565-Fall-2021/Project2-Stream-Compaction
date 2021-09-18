@@ -51,6 +51,9 @@ __global__ void kernScanExclusiveNaive(int n, int *idata, int *odata) {
 void scan(int n, int *odata, const int *idata) {
   if (n <= 0) return;
 
+  const unsigned int grid_size =
+      (n + Common::block_size - 1) / Common::block_size;
+
   int *dev_idata, *dev_odata;
   cudaMalloc((void **)&dev_idata, n * sizeof(int));
   cudaMalloc((void **)&dev_odata, n * sizeof(int));
@@ -60,10 +63,11 @@ void scan(int n, int *odata, const int *idata) {
   checkCUDAError("cudaMemcpy failed for idata --> dev_idata!");
 
   timer().startGpuTimer();
-  dim3 dimGrid{1}, dimBlock{512};
+  dim3 dimGrid{grid_size}, dimBlock{Common::block_size};
   kernScanExclusiveNaive<<<dimGrid, dimBlock>>>(n, dev_idata, dev_odata);
   timer().endGpuTimer();
 
+  cudaDeviceSynchronize();
   cudaMemcpy(odata, dev_odata, n * sizeof(int), cudaMemcpyDeviceToHost);
 
   cudaFree(dev_idata);

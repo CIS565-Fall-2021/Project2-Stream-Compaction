@@ -17,6 +17,8 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 namespace StreamCompaction {
 namespace Common {
 
+const unsigned int block_size = 256;
+
 /**
  * Maps an array to an array of 0s and 1s for stream compaction. Elements
  * which map to 0 will be removed, and elements which map to 1 will be kept.

@@ -33,6 +33,9 @@ inline __device__ __host__ int ilog2ceil(int x) {
 
 namespace StreamCompaction {
 namespace Common {
+
+extern const unsigned int block_size;
+
 __global__ void kernMapToBoolean(int n, int *bools, const int *idata);
 
 __global__ void kernScatter(int n, int *odata, const int *idata,
