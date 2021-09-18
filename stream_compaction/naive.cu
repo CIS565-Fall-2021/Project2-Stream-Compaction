@@ -24,8 +24,8 @@ namespace StreamCompaction {
                 return;
             }
 
-            if (index >= (1 << d-1)) {
-                odata[index] = idata[index - (1 << d - 1)] + idata[index];
+            if (index >= (1 << (d - 1))) {
+                odata[index] = idata[index - (1 << (d - 1))] + idata[index];
             }
             else {
                 odata[index] = idata[index];
@@ -40,7 +40,6 @@ namespace StreamCompaction {
         void scan(int n, int *odata, const int *idata) {
             timer().startGpuTimer();
             
-            //int* odata2;
             int* dev_readable; 
             int* dev_writeable; 
             int* swp; // for ping-ponging odata and odata2
@@ -51,8 +50,6 @@ namespace StreamCompaction {
             cudaMalloc((void**)&dev_writeable, paddedN * sizeof(int));
 
             cudaMemcpy(dev_readable, idata, paddedN * sizeof(int), cudaMemcpyHostToDevice);
-
-            int numKernels = ilog2ceil(n);
 
             // --- begin iterative all-prefix-sum
 
