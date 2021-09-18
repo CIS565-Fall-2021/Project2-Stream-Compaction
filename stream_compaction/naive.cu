@@ -11,15 +11,61 @@ PerformanceTimer &timer() {
   static PerformanceTimer timer;
   return timer;
 }
-// TODO: __global__
+
+template <typename T>
+__device__ void inline swap(T &a, T &b) {
+  T c(a);
+  a = b;
+  b = c;
+}
+
+__global__ void kernScanExclusiveNaive(int n, int *idata, int *odata) {
+  int id    = blockDim.x * blockIdx.x + threadIdx.x;
+  int tx    = threadIdx.x;
+  int bdim  = blockDim.x;
+  int log2n = ilog2ceil((n < bdim) ? n : bdim);
+
+  if (id < n) {
+    for (int d = 1; d <= log2n; ++d) {
+      if (tx >= (1 << (d - 1))) {
+        odata[id] = idata[id - (1 << (d - 1))] + idata[id];
+      }
+      __syncthreads();
+      idata[id] = odata[id];
+      __syncthreads();
+    }
+
+    if (tx > 0) {
+      odata[id] = idata[id - 1];
+    } else {
+      odata[id] = 0;
+    }
+  }
+}
 
 /**
  * Performs prefix-sum (aka scan) on idata, storing the result into odata.
  */
 void scan(int n, int *odata, const int *idata) {
+  if (n <= 0) return;
+
+  int *dev_idata, *dev_odata;
+  cudaMalloc((void **)&dev_idata, n * sizeof(int));
+  cudaMalloc((void **)&dev_odata, n * sizeof(int));
+  checkCUDAError("cudaMalloc failed for dev_idata and dev_odata  !");
+
+  cudaMemcpy(dev_idata, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+  checkCUDAError("cudaMemcpy failed for idata --> dev_idata!");
+
   timer().startGpuTimer();
-  // TODO
+  dim3 dimGrid{1}, dimBlock{512};
+  kernScanExclusiveNaive<<<dimGrid, dimBlock>>>(n, dev_idata, dev_odata);
   timer().endGpuTimer();
+
+  cudaMemcpy(odata, dev_odata, n * sizeof(int), cudaMemcpyDeviceToHost);
+
+  cudaFree(dev_idata);
+  cudaFree(dev_odata);
 }
 }  // namespace Naive
 }  // namespace StreamCompaction
