@@ -2,6 +2,7 @@
 #include <cuda_runtime.h>
 #include "common.h"
 #include "naive.h"
+#include <iostream>
 
 #define blockSize 128
 dim3 threadsPerBlock(blockSize);
@@ -20,22 +21,24 @@ namespace StreamCompaction {
         __global__ void kernScan(int n, int *odata, int *idata, int d){
             int index = (blockDim.x * blockIdx.x) + threadIdx.x;
             
-            // shift array for exclusive scan
-            if (index + 1 >= n) {
+            // if d == 1, shift array over to accomodate first 0
+            int outIndex = d == 1 ? index + 1 : index;
+
+            // if outIndex >= n, return (skips last elem on first run)
+            if (outIndex >= n) {
                 return;
             }
             // if first elem, should be 0
-            if (index == 0) {
+            if (index == 0 && d == 1) {
                 odata[index] = 0;
             }
 
             int offset = pow(2, d-1);
-            int nextIndex = index + 1;
             if (index >= offset){
-                odata[nextIndex] = odata[nextIndex - offset] + idata[index];  
+                odata[outIndex] = idata[index - offset] + idata[index];
             }
             else{
-                odata[nextIndex] = idata[index];   
+                odata[outIndex] = idata[index];
             }
         }
 
@@ -52,8 +55,10 @@ namespace StreamCompaction {
             
             timer().startGpuTimer();
             
+            // if non-power of 2, round n up
+            
             // for log iterations, perform scan
-            for (int d = 1; d < ilog2ceil(n); d++){
+            for (int d = 1; d < ilog2ceil(n) + 1; d++){
                 kernScan << <fullBlocksPerGrid, threadsPerBlock >> > (n, dev_data2, dev_data1, d);
                 
                 // ping-pong
@@ -63,7 +68,7 @@ namespace StreamCompaction {
             }
             timer().endGpuTimer();
             // copy to odata to return
-            cudaMemcpy(odata, dev_data2, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, dev_data1, n * sizeof(int), cudaMemcpyDeviceToHost);
             cudaFree(dev_data1);
             cudaFree(dev_data2);
         }
