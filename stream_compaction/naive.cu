@@ -27,11 +27,13 @@ __global__ void kernScanExclusiveNaive(int n, int *idata, int *odata) {
 
   if (id < n) {
     for (int d = 1; d <= log2n; ++d) {
+      odata[id] = idata[id];
+      __syncthreads();
       if (tx >= (1 << (d - 1))) {
         odata[id] = idata[id - (1 << (d - 1))] + idata[id];
       }
       __syncthreads();
-      idata[id] = odata[id];
+      swap(idata, odata);
       __syncthreads();
     }
 
