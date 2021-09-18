@@ -20,6 +20,13 @@ namespace StreamCompaction {
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
             // TODO
+            // tally a running sum of input data 
+            int sum = 0;
+            odata[0] = 0; 
+            for (int i = 0; i < n; i++) {
+                odata[i] = sum; 
+                sum += idata[i];
+            }
             timer().endCpuTimer();
         }
 
@@ -31,8 +38,15 @@ namespace StreamCompaction {
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
             // TODO
+            // if condition is met, scan and scatter at the same time (sort of) 
+            int index = 0; 
+            for (int i = 0; i < n; i++) {
+                if (idata[i]) {
+                    odata[index++] = idata[i];
+                }
+            }
             timer().endCpuTimer();
-            return -1;
+            return index;
         }
 
         /**
@@ -43,8 +57,38 @@ namespace StreamCompaction {
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
             // TODO
+
+            if (n < 1) { return 0;  }
+
+            // boolean buffer
+            int* ibool = (int*) malloc(n * sizeof(int));
+
+            // map input array to boolean
+            for (int i = 0; i < n; i++) {
+                ibool[i] = (idata[i] != 0); 
+            }
+
+            // scan boolean buffer
+            // memory error is thrown when calling StreamCompaction::CPU::scan()
+            int iboolScan = 0;
+            for (int i = 0; i < n; i++) {
+                odata[i] = iboolScan;
+                iboolScan += ibool[i]; 
+            }
+
+            // scatter 
+            for (int i = 0; i < n; i++) {
+                if (ibool[i]) {
+                    odata[odata[i]] = idata[i]; 
+                }
+            }
+
+            // count number of elements
+            int numElements = odata[n - 1] + ibool[n - 1];
+            free(ibool); 
+
             timer().endCpuTimer();
-            return -1;
+            return numElements;
         }
     }
 }
