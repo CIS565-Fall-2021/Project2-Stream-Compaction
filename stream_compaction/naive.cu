@@ -57,7 +57,7 @@ namespace StreamCompaction {
             
             // for log iterations, perform scan
             for (int d = 1; d < ilog2ceil(n) + 1; d++){
-                kernScan << <fullBlocksPerGrid, threadsPerBlock >> > (n, dev_data2, dev_data1, d);
+                kernScan << <fullBlocksPerGrid, n >> > (n, dev_data2, dev_data1, d);
 
                 // FOR TESTING ONLY
                 /*cudaMemcpy(odata, dev_data2, n * sizeof(int), cudaMemcpyDeviceToHost);

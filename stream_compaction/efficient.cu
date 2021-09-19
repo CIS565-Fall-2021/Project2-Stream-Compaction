@@ -45,33 +45,21 @@ namespace StreamCompaction {
             data[i1] = data[i2];
             data[i2] += leftChild;
         }
-
-        __global__ void kernMakeExclusiveArray(int n, int* inData, int* outData) {
-            int index = (blockDim.x * blockIdx.x) + threadIdx.x;
-            // if last index, will be removed
-            if (index == n - 1) {
-                outData[index] = 0;
-                return;
-            }
-            if (index == 0) {
-                outData[0] = 0;
-            }
-            outData[index+1] = inData[index];
-        }
         
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) 
         {
+            int roundedN = pow(2, ilog2ceil(n));
             // allocate memory
-            cudaMalloc((void **)&dev_data_scan, n * sizeof(int));
+            cudaMalloc((void **)&dev_data_scan, roundedN * sizeof(int));
             cudaMemcpy(dev_data_scan, idata, n * sizeof(int), cudaMemcpyHostToDevice);
 
             timer().startGpuTimer();
 
             // perform up-sweep (parallel reduction)
-            int numThreads = n;
+            int numThreads = roundedN;
             dim3 fullBlocksPerGrid;
             for (int d = 0; d < ilog2ceil(n); d++){
                 // calc threads and blocks
