@@ -61,17 +61,20 @@ namespace StreamCompaction {
                 else {
                     bool_list[ind] = 1;
                 }
+                //printf("%d ", bool_list[ind]);
             }
-            
+            //printf("\n");
             scan_list[0] = 0;
+            //printf("%d ", scan_list[0]);
             for (int ind = 1; ind < n; ind++) {
-                scan_list[ind] = bool_list[ind] + scan_list[ind - 1];
+                scan_list[ind] = bool_list[ind - 1] + scan_list[ind - 1];
+                //printf("%d ", scan_list[ind]);
             }
-
+            //printf("\n");
             int count = 0;
             for (int ind = 0; ind < n; ind++) {
+                //printf("%d ", idata[ind]);
                 if (bool_list[ind] == 1) {
-                    printf("%d ", idata[ind]);
                     odata[scan_list[ind]] = idata[ind];
                     count++;
                 }
