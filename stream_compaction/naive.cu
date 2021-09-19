@@ -69,9 +69,13 @@ void scan(int n, int *odata, const int *idata) {
   checkCUDAError("cudaMemcpy failed for idata --> dev_idata!");
 
   /******* KERNEL INVOCATIONS *******/
-  timer().startGpuTimer();
   dim3 dimGrid{grid_size}, dimBlock{Common::block_size};
+  timer().startGpuTimer();
   kernScanInclusiveNaive<<<dimGrid, dimBlock>>>(n, dev_idata, buffer);
+
+  // NOTE. We assume the number of blocks we use is always less than block size,
+  // so we only have to perform scan on block offsets only once.
+  // TODO: Implement recursive scan feature
   Common::kernExtractLastElementPerBlock<<<dimGrid, dimBlock>>>(
       n, dev_offset_inclusive, dev_idata);
   kernScanInclusiveNaive<<<1, dimBlock>>>(
@@ -81,6 +85,7 @@ void scan(int n, int *odata, const int *idata) {
                                                 dev_offset_inclusive);
   Common::kernAddOffsetPerBlock<<<dimGrid, dimBlock>>>(
       n, dev_idata, dev_offset_exclusive, buffer);
+
   Common::kernShiftToExclusive<<<dimGrid, dimBlock>>>(n, dev_odata, dev_idata);
   timer().endGpuTimer();
   /**********************************/
