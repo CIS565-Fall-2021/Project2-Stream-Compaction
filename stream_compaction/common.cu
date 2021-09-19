@@ -17,7 +17,7 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 namespace StreamCompaction {
 namespace Common {
 
-const unsigned int block_size = 256;
+const unsigned int block_size = 1024;
 
 __global__ void kernExtractLastElementPerBlock(int n, int *odata,
                                                const int *idata) {
