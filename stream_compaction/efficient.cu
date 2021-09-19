@@ -176,6 +176,14 @@ int compact(int n, int *odata, const int *idata) {
   free(indices);
   free(bools);
 
+  cudaFree(dev_idata);
+  cudaFree(dev_odata);
+  cudaFree(dev_indices);
+  cudaFree(dev_bools);
+  cudaFree(dev_buffer);
+  cudaFree(dev_offset_exclusive);
+  cudaFree(dev_offset_inclusive);
+
   return compact_len;
 }
 }  // namespace Efficient

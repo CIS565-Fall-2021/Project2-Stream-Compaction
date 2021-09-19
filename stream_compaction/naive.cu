@@ -53,11 +53,11 @@ void scan(int n, int *odata, const int *idata) {
   const unsigned int grid_size =
       (n + Common::block_size - 1) / Common::block_size;
 
-  int *dev_idata, *dev_odata, *buffer;
+  int *dev_idata, *dev_odata, *dev_buffer;
   cudaMalloc((void **)&dev_idata, n * sizeof(int));
   cudaMalloc((void **)&dev_odata, n * sizeof(int));
-  cudaMalloc((void **)&buffer, n * sizeof(int));
-  checkCUDAError("cudaMalloc failed for dev_idata, dev_odata, buffer!");
+  cudaMalloc((void **)&dev_buffer, n * sizeof(int));
+  checkCUDAError("cudaMalloc failed for dev_idata, dev_odata, dev_buffer!");
 
   int *dev_offset_inclusive, *dev_offset_exclusive;
   cudaMalloc((void **)&dev_offset_inclusive, grid_size * sizeof(int));
@@ -71,7 +71,7 @@ void scan(int n, int *odata, const int *idata) {
   /******* KERNEL INVOCATIONS *******/
   dim3 dimGrid{grid_size}, dimBlock{Common::block_size};
   timer().startGpuTimer();
-  kernScanInclusiveNaive<<<dimGrid, dimBlock>>>(n, dev_idata, buffer);
+  kernScanInclusiveNaive<<<dimGrid, dimBlock>>>(n, dev_idata, dev_buffer);
 
   // NOTE. We assume the number of blocks we use is always less than block size,
   // so we only have to perform scan on block offsets only once.
@@ -80,11 +80,12 @@ void scan(int n, int *odata, const int *idata) {
       n, dev_offset_inclusive, dev_idata);
   kernScanInclusiveNaive<<<1, dimBlock>>>(
       grid_size, dev_offset_inclusive,
-      dev_offset_exclusive);  // dev_offset_exclusive only serves as buffer here
+      dev_offset_exclusive);  // dev_offset_exclusive only serves as buffer
+                              // here
   Common::kernShiftToExclusive<<<1, dimBlock>>>(grid_size, dev_offset_exclusive,
                                                 dev_offset_inclusive);
   Common::kernAddOffsetPerBlock<<<dimGrid, dimBlock>>>(
-      n, dev_idata, dev_offset_exclusive, buffer);
+      n, dev_idata, dev_offset_exclusive, dev_buffer);
 
   Common::kernShiftToExclusive<<<dimGrid, dimBlock>>>(n, dev_odata, dev_idata);
   timer().endGpuTimer();
@@ -95,6 +96,9 @@ void scan(int n, int *odata, const int *idata) {
 
   cudaFree(dev_idata);
   cudaFree(dev_odata);
+  cudaFree(dev_buffer);
+  cudaFree(dev_offset_exclusive);
+  cudaFree(dev_offset_inclusive);
 }
 }  // namespace Naive
 }  // namespace StreamCompaction
