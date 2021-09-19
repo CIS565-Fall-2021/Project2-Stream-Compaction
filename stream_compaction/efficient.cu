@@ -6,7 +6,10 @@
 
 #define blockSize 128
 int *dev_data_scan;
-int *dev_data_compact;
+int *dev_compact_in;
+int* dev_compact_out;
+int* dev_bools;
+int* dev_indices;
 
 namespace StreamCompaction {
     namespace Efficient {
@@ -86,6 +89,43 @@ namespace StreamCompaction {
         }
 
         /**
+        * Performs prefix-sum (aka scan) on odata, storing the result into odata. 
+        * Both ptrs are device ptrs. This is a helper for compact()
+        */
+        void scanHelper(int n, int* odata)
+        {
+            int roundedN = pow(2, ilog2ceil(n));
+            // allocate memory
+            cudaMalloc((void**)&dev_data_scan, roundedN * sizeof(int));
+            cudaMemcpy(dev_data_scan, odata, n * sizeof(int), cudaMemcpyHostToDevice);
+
+            // perform up-sweep (parallel reduction)
+            int numThreads = roundedN;
+            dim3 fullBlocksPerGrid;
+            for (int d = 0; d < ilog2ceil(n); d++) {
+                // calc threads and blocks
+                numThreads = numThreads / 2;
+                fullBlocksPerGrid = dim3((numThreads + blockSize - 1) / blockSize);
+
+                kernParallelReduction << <fullBlocksPerGrid, numThreads >> > (dev_data_scan, d);
+            }
+
+            // perform down-sweep
+            bool firstLoop = false;
+            for (int d = ilog2ceil(n) - 1; d >= 0; d--) {
+                fullBlocksPerGrid = dim3((numThreads + blockSize - 1) / blockSize);
+                firstLoop = d == ilog2ceil(n) - 1;
+
+                kernDownSweep << <fullBlocksPerGrid, numThreads >> > (dev_data_scan, d, firstLoop);
+
+                numThreads = numThreads * 2;
+            }
+
+            cudaMemcpy(odata, dev_data_scan, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaFree(dev_data_scan);
+        }
+
+        /**
          * Performs stream compaction on idata, storing the result into odata.
          * All zeroes are discarded.
          *
@@ -96,26 +136,36 @@ namespace StreamCompaction {
          */
         int compact(int n, int *odata, const int *idata) {
             // allocate memory
-            /*dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
-            cudaMalloc((void **)&dev_data_compact, n * sizeof(int));
-            checkCUDAErrorWithLine("cudaMalloc dev_data failed!");
+            dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
+            cudaMalloc((void **)&dev_compact_in, n * sizeof(int));
+            cudaMalloc((void**)&dev_bools, n * sizeof(int));
+            cudaMemcpy(dev_compact_in, idata, n * sizeof(int), cudaMemcpyHostToDevice);
 
             timer().startGpuTimer();
             // map bools to ints
-            kernMapToBoolean<<<fullBlocksPerGrid, threadsPerBlock>>>(n, idata, dev_data_compact);
+            Common::kernMapToBoolean<<<fullBlocksPerGrid, n>>>(n, dev_bools, dev_compact_in);
 
-            scan(n, dev_data_compact, dev_data_compact);
+            cudaMemcpy(odata, dev_bools, n * sizeof(int), cudaMemcpyDeviceToHost);
 
-            // TODO: revisit once have access to lab computer
-            // change way you handle dev_data
-            kernScatter<<<fullBlocksPerGrid, threadsPerBlock>>>(n, odata, idata, dev_data_compact, dev_data_compact);
+            scanHelper(n, odata);
+
+            int outSize = odata[n - 1];
+            cudaMalloc((void**)&dev_compact_out, outSize * sizeof(int));
+
+            // perform scatter to fill final array
+            Common::kernScatter<<<fullBlocksPerGrid, n>>>(n, dev_compact_out, dev_compact_in, 
+                                                          dev_bools, dev_data_scan);
 
             timer().endGpuTimer();
 
-            cudaFree(dev_data_compact);
+            cudaMemcpy(odata, dev_compact_out, outSize * sizeof(int), cudaMemcpyDeviceToHost);
 
-            return dev_data_compact[n-1];*/
-            return 0;
+            cudaFree(dev_compact_in);
+            cudaFree(dev_bools);
+            cudaFree(dev_compact_out);
+            cudaFree(dev_indices);
+
+            return outSize;
         }
     }
 }

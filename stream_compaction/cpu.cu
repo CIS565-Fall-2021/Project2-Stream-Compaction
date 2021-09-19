@@ -38,7 +38,7 @@ namespace StreamCompaction {
             for (int i = 0; i < n; i++){
                 bool elem = idata[i];
                 if (elem){
-                    odata[compactSize] = elem; 
+                    odata[compactSize] = idata[i]; 
                     compactSize++;
                 }
             }
@@ -67,7 +67,7 @@ namespace StreamCompaction {
             for (int i = 0; i < n; i++){
                 if (idata[i]){ 
                     int outIndex = odata[i];
-                    odata[outIndex] = 1; 
+                    odata[outIndex] = idata[i]; 
                 }    
             }
             
