@@ -163,6 +163,24 @@ int main(int argc, char* argv[]) {
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
 
+    printf("\n");
+    printf("***************\n");
+    printf("** SORT TEST **\n");
+    printf("***************\n");
+
+    // Sort test
+
+    int bits = 5;
+    int sort_size = 1 << 4;
+
+    genArray(sort_size, a, (1 << bits) - 1);
+    printArray(sort_size, a, true);
+
+    zeroArray(sort_size, b);
+    printDesc("radix sort, power-of-two");
+    Sort::radix_sort(sort_size, bits, b, a);
+    printArray(sort_size, b, true);
+
     system("pause"); // stop Win32 console from closing on exit
     delete[] a;
     delete[] b;
