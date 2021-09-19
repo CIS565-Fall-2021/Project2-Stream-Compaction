@@ -6,7 +6,6 @@
 
 #define blockSize 128
 int *dev_data_scan;
-int* dev_data_scan2;
 int *dev_data_compact;
 
 namespace StreamCompaction {
@@ -18,7 +17,7 @@ namespace StreamCompaction {
             return timer;
         }
 
-        __global__ void kernParallelReduction(int n, int *data, int d, bool lastLoop){
+        __global__ void kernParallelReduction(int *data, int d){
             int k = (blockDim.x * blockIdx.x) + threadIdx.x;
 
             // start index for each thread
@@ -32,11 +31,16 @@ namespace StreamCompaction {
             data[i2] += data[i1];
         }
 
-        __global__ void kernDownSweep(int n, int *data, int d){
+        __global__ void kernDownSweep(int *data, int d, bool firstLoop){
             int index = (blockDim.x * blockIdx.x) + threadIdx.x;
-            int i1 = index + pow(2, d) - 1;
-            int i2 = index + pow(2, d + 1) - 1;
+            int offset = index * (pow(2, d + 1) - 1);
+            int i1 = index + pow(2, d) - 1 + offset;
+            int i2 = index + pow(2, d + 1) - 1 + offset;
 
+            // set last item to 0 on first loop
+            if (firstLoop) {
+                data[i2] = 0;
+            }
             int leftChild = data[i1];
             data[i1] = data[i2];
             data[i2] += leftChild;
@@ -62,38 +66,35 @@ namespace StreamCompaction {
         {
             // allocate memory
             cudaMalloc((void **)&dev_data_scan, n * sizeof(int));
-            cudaMalloc((void **)&dev_data_scan2, n * sizeof(int));
             cudaMemcpy(dev_data_scan, idata, n * sizeof(int), cudaMemcpyHostToDevice);
 
             timer().startGpuTimer();
 
             // perform up-sweep (parallel reduction)
-            bool lastLoop = false;
             int numThreads = n;
             dim3 fullBlocksPerGrid;
             for (int d = 0; d < ilog2ceil(n); d++){
-                if (d == ilog2ceil(n) - 1) { lastLoop = true; }
-
                 // calc threads and blocks
-                numThreads = numThreads / 2.f;
+                numThreads = numThreads / 2;
                 fullBlocksPerGrid = dim3((numThreads + blockSize - 1) / blockSize);
 
-                kernParallelReduction<<<fullBlocksPerGrid, blockSize>>>(numThreads, dev_data_scan, d, lastLoop);
+                kernParallelReduction<<<fullBlocksPerGrid, numThreads>>>(dev_data_scan, d);
             }
 
-            // shift array so it's exclusive
-            fullBlocksPerGrid = dim3((n + blockSize - 1) / blockSize);
-            kernMakeExclusiveArray << <fullBlocksPerGrid, blockSize >> > (n, dev_data_scan, dev_data_scan2);
-
             // perform down-sweep
-            /*for (int d = ilog2ceil(n) - 1; d >= 0; d--) {
-                kernDownSweep<<<fullBlocksPerGrid, blockSize>>>(n, dev_data_scan, d);
-            }*/
+            bool firstLoop = false;
+            for (int d = ilog2ceil(n) - 1; d >= 0; d--) {
+                fullBlocksPerGrid = dim3((numThreads + blockSize - 1) / blockSize);
+                firstLoop = d == ilog2ceil(n) - 1;
+
+                kernDownSweep<<<fullBlocksPerGrid, numThreads>>>(dev_data_scan, d, firstLoop);
+
+                numThreads = numThreads * 2;
+            }
             timer().endGpuTimer();
 
-            cudaMemcpy(odata, dev_data_scan2, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, dev_data_scan, n * sizeof(int), cudaMemcpyDeviceToHost);
             cudaFree(dev_data_scan);
-            cudaFree(dev_data_scan2);
         }
 
         /**

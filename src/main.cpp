@@ -30,6 +30,14 @@ int main(int argc, char* argv[]) {
 
     genArray(SIZE - 1, a, 50);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
+    /*a[0] = 0;
+    a[1] = 1;
+    a[2] = 2;
+    a[3] = 3;
+    a[4] = 4;
+    a[5] = 5;
+    a[6] = 6;
+    a[7] = 7;*/
     printArray(SIZE, a, true);
 
     // initialize b using StreamCompaction::CPU::scan you implement
