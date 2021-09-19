@@ -36,6 +36,15 @@ namespace Common {
 
 extern const unsigned int block_size;
 
+__global__ void kernExtractLastElementPerBlock(int n, int *odata,
+                                               const int *idata);
+
+__global__ void kernAddOffsetPerBlock(int n, int *odata,
+                                      const int *block_offset,
+                                      const int *idata);
+
+__global__ void kernShiftToExclusive(int n, int *odata, const int *idata);
+
 __global__ void kernMapToBoolean(int n, int *bools, const int *idata);
 
 __global__ void kernScatter(int n, int *odata, const int *idata,

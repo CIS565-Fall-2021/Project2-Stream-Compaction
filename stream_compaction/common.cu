@@ -19,6 +19,38 @@ namespace Common {
 
 const unsigned int block_size = 256;
 
+__global__ void kernExtractLastElementPerBlock(int n, int *odata,
+                                               const int *idata) {
+  int bid = blockIdx.x;
+  int tid = threadIdx.x;
+  int id  = bid * blockDim.x + tid;
+  if (id < n) {
+    if (tid == blockDim.x - 1 || id == n - 1) {
+      odata[bid] = idata[id];
+    }
+  }
+}
+
+__global__ void kernAddOffsetPerBlock(int n, int *odata,
+                                      const int *block_offset,
+                                      const int *idata) {
+  int bid = blockIdx.x;
+  int id  = bid * blockDim.x + threadIdx.x;
+  if (id < n) {
+    odata[id] = idata[id] + block_offset[bid];
+  }
+}
+
+__global__ void kernShiftToExclusive(int n, int *odata, const int *idata) {
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id < n) {
+    if (id == 0)
+      odata[id] = 0;
+    else
+      odata[id] = idata[id - 1];
+  }
+}
+
 /**
  * Maps an array to an array of 0s and 1s for stream compaction. Elements
  * which map to 0 will be removed, and elements which map to 1 will be kept.

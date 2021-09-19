@@ -19,7 +19,12 @@ __device__ void inline swap(T &a, T &b) {
   b = c;
 }
 
-__global__ void kernScanExclusiveNaive(int n, int *idata, int *odata) {
+/**
+ * Naive parallel scan algorithm
+ * Input must be stored in `data`.
+ * Output is stored both in `data` and `buffer`.
+ */
+__global__ void kernScanInclusiveNaive(int n, int *data, int *buffer) {
   int id    = blockDim.x * blockIdx.x + threadIdx.x;
   int tx    = threadIdx.x;
   int bdim  = blockDim.x;
@@ -27,20 +32,14 @@ __global__ void kernScanExclusiveNaive(int n, int *idata, int *odata) {
 
   if (id < n) {
     for (int d = 1; d <= log2n; ++d) {
-      odata[id] = idata[id];
+      buffer[id] = data[id];
       __syncthreads();
       if (tx >= (1 << (d - 1))) {
-        odata[id] = idata[id - (1 << (d - 1))] + idata[id];
+        buffer[id] = data[id - (1 << (d - 1))] + data[id];
       }
       __syncthreads();
-      swap(idata, odata);
+      data[id] = buffer[id];
       __syncthreads();
-    }
-
-    if (tx > 0) {
-      odata[id] = idata[id - 1];
-    } else {
-      odata[id] = 0;
     }
   }
 }
@@ -54,18 +53,37 @@ void scan(int n, int *odata, const int *idata) {
   const unsigned int grid_size =
       (n + Common::block_size - 1) / Common::block_size;
 
-  int *dev_idata, *dev_odata;
+  int *dev_idata, *dev_odata, *buffer;
   cudaMalloc((void **)&dev_idata, n * sizeof(int));
   cudaMalloc((void **)&dev_odata, n * sizeof(int));
-  checkCUDAError("cudaMalloc failed for dev_idata and dev_odata  !");
+  cudaMalloc((void **)&buffer, n * sizeof(int));
+  checkCUDAError("cudaMalloc failed for dev_idata, dev_odata, buffer!");
+
+  int *dev_offset_inclusive, *dev_offset_exclusive;
+  cudaMalloc((void **)&dev_offset_inclusive, grid_size * sizeof(int));
+  cudaMalloc((void **)&dev_offset_exclusive, grid_size * sizeof(int));
+  checkCUDAError(
+      "cudaMalloc failed for dev_offset_inclusive, dev_offset_exclusive!");
 
   cudaMemcpy(dev_idata, idata, n * sizeof(int), cudaMemcpyHostToDevice);
   checkCUDAError("cudaMemcpy failed for idata --> dev_idata!");
 
+  /******* KERNEL INVOCATIONS *******/
   timer().startGpuTimer();
   dim3 dimGrid{grid_size}, dimBlock{Common::block_size};
-  kernScanExclusiveNaive<<<dimGrid, dimBlock>>>(n, dev_idata, dev_odata);
+  kernScanInclusiveNaive<<<dimGrid, dimBlock>>>(n, dev_idata, buffer);
+  Common::kernExtractLastElementPerBlock<<<dimGrid, dimBlock>>>(
+      n, dev_offset_inclusive, dev_idata);
+  kernScanInclusiveNaive<<<1, dimBlock>>>(
+      grid_size, dev_offset_inclusive,
+      dev_offset_exclusive);  // dev_offset_exclusive only serves as buffer here
+  Common::kernShiftToExclusive<<<1, dimBlock>>>(grid_size, dev_offset_exclusive,
+                                                dev_offset_inclusive);
+  Common::kernAddOffsetPerBlock<<<dimGrid, dimBlock>>>(
+      n, dev_idata, dev_offset_exclusive, buffer);
+  Common::kernShiftToExclusive<<<dimGrid, dimBlock>>>(n, dev_odata, dev_idata);
   timer().endGpuTimer();
+  /**********************************/
 
   cudaDeviceSynchronize();
   cudaMemcpy(odata, dev_odata, n * sizeof(int), cudaMemcpyDeviceToHost);
