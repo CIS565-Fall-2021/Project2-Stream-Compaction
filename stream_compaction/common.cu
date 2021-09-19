@@ -56,7 +56,10 @@ __global__ void kernShiftToExclusive(int n, int *odata, const int *idata) {
  * which map to 0 will be removed, and elements which map to 1 will be kept.
  */
 __global__ void kernMapToBoolean(int n, int *bools, const int *idata) {
-  // TODO
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id < n) {
+    bools[id] = (idata[id] == 0) ? 0 : 1;
+  }
 }
 
 /**
@@ -65,7 +68,10 @@ __global__ void kernMapToBoolean(int n, int *bools, const int *idata) {
  */
 __global__ void kernScatter(int n, int *odata, const int *idata,
                             const int *bools, const int *indices) {
-  // TODO
+  int id = blockDim.x * blockIdx.x + threadIdx.x;
+  if (id < n) {
+    if (bools[id] == 1) odata[indices[id]] = idata[id];
+  }
 }
 
 }  // namespace Common

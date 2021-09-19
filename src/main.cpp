@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
   printElapsedTime(StreamCompaction::Efficient::timer()
                        .getGpuElapsedTimeForPreviousOperation(),
                    "(CUDA Measured)");
-  // printArray(count, c, true);
+  printArray(count, c, true);
   printCmpLenResult(count, expectedCount, b, c);
 
   zeroArray(SIZE, c);
@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) {
   printElapsedTime(StreamCompaction::Efficient::timer()
                        .getGpuElapsedTimeForPreviousOperation(),
                    "(CUDA Measured)");
-  // printArray(count, c, true);
+  printArray(count, c, true);
   printCmpLenResult(count, expectedNPOT, b, c);
 
 #if defined(_WIN32)
