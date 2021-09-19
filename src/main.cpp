@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
   printElapsedTime(
       StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(),
       "(CUDA Measured)");
-  // printArray(SIZE, c, true);
+  printArray(SIZE, c, true);
   printCmpResult(SIZE, b, c);
 
   zeroArray(SIZE, c);
@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
   printElapsedTime(
       StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(),
       "(CUDA Measured)");
-  // printArray(NPOT, c, true);
+  printArray(NPOT, c, true);
   printCmpResult(NPOT, b, c);
 
   printf("\n");
