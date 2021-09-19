@@ -60,12 +60,12 @@ namespace StreamCompaction {
          */
         int compactWithScan(int n, int *odata, const int *idata) {
 
-            int arr_b[300];
-            int arr_c[300]; // exclusive array
+            int *arr_b = new int[n];
+            int *arr_c = new int[n]; // exclusive array
             timer().startCpuTimer();
 
 
-            int ans[300];
+            int *ans = new int[n];
 
             int finalIndex = 0;
 #pragma region Powerof2
@@ -99,7 +99,7 @@ namespace StreamCompaction {
             // TODO
 #pragma region NonPower2
 
-            int arr_z[300];
+            int *arr_z = new int[n];
 
             int power2 = 1;
             int nearesttwo = 2;
