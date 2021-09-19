@@ -25,6 +25,17 @@ namespace StreamCompaction {
             dataPadded2[index] = 0;
         }
 
+        __global__ void kernCpyArr(int nPadded, int* dataPadded1, const int* dataPadded2) {
+            int index = threadIdx.x + (blockIdx.x * blockDim.x);
+            if (index >= nPadded) {
+                return;
+            }
+
+            // reset memory 
+            dataPadded1[index] = dataPadded2[index];
+            
+        }
+
         __global__ void kernExclusive(int nPadded, const int* dataPadded1, int* dataPadded2) {
             int index = threadIdx.x + (blockIdx.x * blockDim.x);
             if (index >= nPadded) {
@@ -62,22 +73,21 @@ namespace StreamCompaction {
             int depth = ilog2ceil(n); 
             int nPadded = 1 << depth;
 
-            int* dev_dataPadded1; int* dev_dataPadded2;
+            int* dev_dataPadded1; int* dev_dataPadded2, int* temp;
             cudaMalloc((void**)&dev_dataPadded1, nPadded * sizeof(int));
             checkCUDAError("cudaMalloc dev_dataExtended1 failed!");
             cudaMalloc((void**)&dev_dataPadded2, nPadded * sizeof(int));
             checkCUDAError("cudaMalloc dev_dataExtended2 failed!");
             
-            // instantiate blocks 
+            // set blocks and threads 
             dim3 threadsPerBlock(blockSize);
-            dim3 fullBlocksPerGrid(nPadded / threadsPerBlock.x + 1);
+            dim3 fullBlocksPerGrid(std::ceil((double) nPadded / blockSize));
 
             // reset idata buffer to 0, reset odata buffer to quiet_NaN
             kernResetBuffer<<<fullBlocksPerGrid, threadsPerBlock>>>(nPadded, dev_dataPadded1, dev_dataPadded2);
             
             // copy idata to device memory 
             cudaMemcpy(dev_dataPadded1, idata, n * sizeof(int), cudaMemcpyHostToDevice); 
-            cudaMemcpy(dev_dataPadded2, idata, n * sizeof(int), cudaMemcpyHostToDevice);
             // cudaDeviceSynchronize(); 
 
             // begin scan process
@@ -91,11 +101,11 @@ namespace StreamCompaction {
 
             // make scan exclusive
             kernExclusive<<<fullBlocksPerGrid, threadsPerBlock>>>(nPadded, dev_dataPadded1, dev_dataPadded2);
-            // cudaDeviceSynchronize(); 
+            cudaDeviceSynchronize(); 
+            timer().endGpuTimer();
 
             // copy scan back to host
             cudaMemcpy(odata, dev_dataPadded2, n * sizeof(int), cudaMemcpyDeviceToHost); 
-            timer().endGpuTimer();
             
             // free local buffers
             cudaFree(dev_dataPadded1);

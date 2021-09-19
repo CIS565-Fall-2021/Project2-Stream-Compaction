@@ -13,7 +13,7 @@
 #include <stream_compaction/thrust.h>
 #include "testing_helpers.hpp"
 
-const int SIZE = 1 << 10; // feel free to change the size of array
+const int SIZE = 1 << 14; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
     StreamCompaction::CPU::scan(NPOT, c, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
     //printArray(NPOT, b, true);
-    //printCmpResult(NPOT, b, c);
+    printCmpResult(NPOT, b, c);
 
     zeroArray(SIZE, c);
     printDesc("naive scan, power-of-two");
