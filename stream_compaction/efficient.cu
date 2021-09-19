@@ -57,46 +57,78 @@ __global__ void kernScanInclusive(int n, int *odata, int *idata) {
  * Performs prefix-sum (aka scan) on idata, storing the result into odata.
  */
 void scan(int n, int *odata, const int *idata) {
-  const unsigned int grid_size =
-      (n + Common::block_size - 1) / Common::block_size;
+  if (n <= 0) return;
   const int n_pad = 1 << (ilog2ceil(n));
 
-  // allocate input/output device data
-  int *dev_idata, *dev_odata;
-  cudaMalloc((void **)&dev_idata, n_pad * sizeof(int));
-  cudaMalloc((void **)&dev_odata, n_pad * sizeof(int));
-  checkCUDAError("cudaMalloc dev_idata, dev_odata failed!");
+  int num_scans = 1;
+  int len       = n_pad;
+  while ((len + Common::block_size - 1) / Common::block_size > 1) {
+    ++num_scans;
+    len = (len + Common::block_size - 1) / Common::block_size;
+  }
 
-  cudaMemset(dev_idata, 0, n_pad * sizeof(int));
-  checkCUDAError("cudaMemset dev_idata to 0 failed!");
-  cudaMemcpy(dev_idata, idata, n * sizeof(int), cudaMemcpyHostToDevice);
-  checkCUDAError("cudaMemcpy dev_idata from idata failed!");
+  int **dev_idata  = (int **)malloc(num_scans * sizeof(int *));
+  int **dev_odata  = (int **)malloc(num_scans * sizeof(int *));
+  int **dev_buffer = (int **)malloc(num_scans * sizeof(int *));
+  int *array_sizes = (int *)malloc(num_scans * sizeof(int));
+  int *grid_sizes  = (int *)malloc(num_scans * sizeof(int));
 
-  // allocate block reduction device data
-  int *dev_block_offset_inclusive, *dev_block_offset_exclusive;
-  cudaMalloc((void **)&dev_block_offset_inclusive, grid_size * sizeof(int));
-  cudaMalloc((void **)&dev_block_offset_exclusive, grid_size * sizeof(int));
+  len = n_pad;
+  for (int i = 0; i < num_scans; ++i) {
+    cudaMalloc((void **)&dev_idata[i], len * sizeof(int));
+    cudaMalloc((void **)&dev_odata[i], len * sizeof(int));
+    cudaMalloc((void **)&dev_buffer[i], len * sizeof(int));
+    checkCUDAError("cudaMalloc failed for dev_idata, dev_odata, dev_buffer!");
+    array_sizes[i] = len;
+    len            = (len + Common::block_size - 1) / Common::block_size;
+    grid_sizes[i]  = len;
+  }
 
-  /******* KERNEL INVOCATION *******/
-  dim3 dimGrid{grid_size}, dimBlock{Common::block_size};
+  cudaMemcpy(dev_idata[0], idata, n * sizeof(int), cudaMemcpyHostToDevice);
+  checkCUDAError("cudaMemcpy failed for idata --> dev_idata[0]!");
+
+  /******* KERNEL INVOCATIONS *******/
+  dim3 dimBlock{Common::block_size};
   timer().startGpuTimer();
-  kernScanInclusive<<<dimGrid, dimBlock>>>(n_pad, dev_odata, dev_idata);
-  Common::kernExtractLastElementPerBlock<<<dimGrid, dimBlock>>>(
-      n_pad, dev_block_offset_exclusive, dev_odata);
-  kernScanInclusive<<<1, dimBlock>>>(grid_size, dev_block_offset_inclusive,
-                                     dev_block_offset_exclusive);
-  Common::kernShiftToExclusive<<<1, dimBlock>>>(
-      grid_size, dev_block_offset_exclusive, dev_block_offset_inclusive);
-  Common::kernAddOffsetPerBlock<<<dimGrid, dimBlock>>>(
-      n_pad, dev_idata, dev_block_offset_exclusive, dev_odata);
-  Common::kernShiftToExclusive<<<dimGrid, dimBlock>>>(n_pad, dev_odata,
-                                                      dev_idata);
-  timer().endGpuTimer();
-  /*********************************/
-
+  for (int i = 0; i < num_scans; ++i) {
+    dim3 dimGrid{(unsigned int)grid_sizes[i]};
+    kernScanInclusive<<<dimGrid, dimBlock>>>(array_sizes[i], dev_buffer[i],
+                                             dev_idata[i]);
+    cudaMemcpy(dev_idata[i], dev_buffer[i], array_sizes[i] * sizeof(int),
+               cudaMemcpyDeviceToDevice);
+    if (i < num_scans - 1) {
+      Common::kernExtractLastElementPerBlock<<<dimGrid, dimBlock>>>(
+          array_sizes[i], dev_idata[i + 1], dev_idata[i]);
+    }
+  }
+  for (int i = num_scans - 1; i >= 0; --i) {
+    dim3 dimGrid{(unsigned int)grid_sizes[i]};
+    Common::kernShiftToExclusive<<<dimGrid, dimBlock>>>(
+        array_sizes[i], dev_odata[i], dev_buffer[i]);
+    if (i >= 1) {
+      dim3 next_dimGrid{(unsigned int)grid_sizes[i - 1]};
+      Common::kernAddOffsetPerBlock<<<next_dimGrid, dimBlock>>>(
+          array_sizes[i - 1], dev_buffer[i - 1], dev_odata[i],
+          dev_idata[i - 1]);
+    }
+  }
   cudaDeviceSynchronize();
-  cudaMemcpy(odata, dev_odata, n * sizeof(int), cudaMemcpyDeviceToHost);
-  checkCUDAError("cudaMemcpy odata from dev_idata failed!");
+  timer().endGpuTimer();
+  /**********************************/
+
+  cudaMemcpy(odata, dev_odata[0], n * sizeof(int), cudaMemcpyDeviceToHost);
+
+  // Free all memory allocations
+  for (int i = 0; i < num_scans; ++i) {
+    cudaFree(dev_idata[i]);
+    cudaFree(dev_odata[i]);
+    cudaFree(dev_buffer[i]);
+  }
+  free(grid_sizes);
+  free(array_sizes);
+  free(dev_idata);
+  free(dev_odata);
+  free(dev_buffer);
 }
 
 /**
