@@ -12,6 +12,13 @@ namespace StreamCompaction {
             return timer;
         }
 
+        void scanHelper(int n, int* odata, const int* idata) {
+            odata[0] = 0;
+            for (int i = 1; i < n; ++i) {
+                odata[i] = idata[i - 1] + odata[i - 1];
+            }
+        }
+
         /**
          * CPU scan (prefix sum).
          * For performance analysis, this is supposed to be a simple for loop.
@@ -19,10 +26,7 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            odata[0] = 0;
-            for (int i = 1; i < n; ++i) {
-                odata[i] = idata[i - 1] + odata[i - 1];
-            }
+            scanHelper(n, odata, idata);
             timer().endCpuTimer();
         }
 
@@ -50,16 +54,16 @@ namespace StreamCompaction {
          */
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            int *temp = new int[n];
-            int *scan = new int[n];
+            int *boolArray = new int[n];
+            int *scanArray = new int[n];
             for (int i = 0; i < n; ++i) {
-                temp[i] = idata[i] == 0 ? 0 : 1;
+                boolArray[i] = idata[i] == 0 ? 0 : 1;
             }
-            scan(n, scan, temp);
+            scanHelper(n, scanArray, boolArray);
             int num = 0;
             for (int i = 0; i < n; ++i) {
-                if (temp[i] != 0) {
-                    odata[scan[i]] = idata[i];
+                if (boolArray[i] != 0) {
+                    odata[scanArray[i]] = idata[i];
                     ++num;
                 }
             }

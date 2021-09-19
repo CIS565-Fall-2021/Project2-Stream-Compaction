@@ -19,7 +19,7 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
 
-            thrust::device_vector<int> dev_idata(dev_idata, dev_idata + n);
+            thrust::device_vector<int> dev_idata(idata, idata + n);
             thrust::device_vector<int> dev_odata(n);
 
             timer().startGpuTimer();
