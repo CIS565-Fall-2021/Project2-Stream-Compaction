@@ -52,12 +52,13 @@ namespace StreamCompaction {
             int* dev_readable; 
             int* dev_writeable; 
 
+            // pad to a power of 2
             int paddedN = 1 << ilog2ceil(n);
 
-            //cudaMalloc((void**)&dev_readable, paddedN * sizeof(int));
             cudaMalloc((void**)&dev_writeable, paddedN * sizeof(int));
 
-            cudaMemcpy(dev_writeable, idata, paddedN * sizeof(int), cudaMemcpyHostToDevice);
+            // write n items to the GPU array, but offset the start so that the total length is `paddedN` 
+            cudaMemcpy(dev_writeable, idata, n * sizeof(int), cudaMemcpyHostToDevice);
 
             // --- up sweep ---
             for (int d = 0; d < log2(paddedN); d++) {
@@ -65,20 +66,20 @@ namespace StreamCompaction {
 				kernUpSweep <<<numThreads, BLOCKSIZE>>> (numThreads, dev_writeable, d);
 				checkCUDAErrorFn("upsweep failed", "efficent.cu", 50);
 				cudaDeviceSynchronize();
-				cudaMemcpy(odata, dev_writeable, n * sizeof(int), cudaMemcpyDeviceToHost);
+				//cudaMemcpy(odata, dev_writeable, paddedN * sizeof(int), cudaMemcpyDeviceToHost);
             }
 
             // --- down sweep ---
             // insert 0 at the end of the in-progress output
             int ZERO = 0;
-            cudaMemcpy(dev_writeable + n - 1, &ZERO, sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_writeable + paddedN - 1, &ZERO, sizeof(int), cudaMemcpyHostToDevice);
 			cudaMemcpy(odata, dev_writeable, n * sizeof(int), cudaMemcpyDeviceToHost);
             for (int d = log2(paddedN - 1); d >= 0; d--) {
 				int numThreads = ((paddedN - 1) / (1 << (d + 1))) + 1;
 				kernDownSweep <<<numThreads, BLOCKSIZE>>> (numThreads, dev_writeable, d);
 				checkCUDAErrorFn("downsweep failed", "efficent.cu", 70);
 				cudaDeviceSynchronize();
-				cudaMemcpy(odata, dev_writeable, n * sizeof(int), cudaMemcpyDeviceToHost);
+				//cudaMemcpy(odata, dev_writeable, paddedN * sizeof(int), cudaMemcpyDeviceToHost);
             }
 
             timer().endGpuTimer();
@@ -87,7 +88,6 @@ namespace StreamCompaction {
             // and we shift everything (except the last elem) one index right
             cudaMemcpy(odata, dev_writeable, n * sizeof(int), cudaMemcpyDeviceToHost);
             cudaFree(dev_writeable);
-
         }
 
         /**
