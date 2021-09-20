@@ -119,5 +119,28 @@ namespace StreamCompaction {
 
             return lastBool + lastIdx;
         }
+
+        void radixSort(int n, int *odata, int *idata) {
+
+            int *dev_idata, *dev_odata, *dev_bools, *dev_scan;
+            cudaMalloc((void**) &dev_idata, n * sizeof(int));
+            cudaMalloc((void**) &dev_odata, n * sizeof(int));
+            cudaMalloc((void**) &dev_bools, n * sizeof(int));
+            cudaMalloc((void**) &dev_scan, n * sizeof(int));
+
+            cudaMemcpy(dev_idata, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+
+            int maxNum = 0;
+            for (int i = 0; i < n; ++i) {
+                maxNum = std::max(maxNum, idata[n]);
+            }
+
+            cudaMemcpy(odata, dev_odata, n * sizeof(int), cudaMemcpyDeviceToHost);
+
+            cudaFree(dev_idata);
+            cudaFree(dev_odata);
+            cudaFree(dev_bools);
+            cudaFree(dev_scan);
+        }
     }
 }

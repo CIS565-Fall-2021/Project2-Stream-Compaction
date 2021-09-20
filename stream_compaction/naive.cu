@@ -30,6 +30,8 @@ namespace StreamCompaction {
         void scan(int n, int *odata, const int *idata) {
 
             dim3 blocks((n + blockSize - 1) / blockSize);
+            int steps = ilog2ceil(n);
+            int offset = 1;
 
             int *dev_temp1, *dev_temp2;
             cudaMalloc((void**) &dev_temp1, n * sizeof(int));
@@ -38,8 +40,6 @@ namespace StreamCompaction {
             cudaMemcpy(dev_temp1, idata, n * sizeof(int), cudaMemcpyHostToDevice);
 
             timer().startGpuTimer();
-            int steps = ilog2ceil(n);
-            int offset = 1;
             for (int i = 0; i < steps; ++i) {
                 kernScanStep<<<blocks, blockSize>>>(n, dev_temp1, dev_temp2, offset);
                 std::swap(dev_temp1, dev_temp2);
