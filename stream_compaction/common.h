@@ -11,6 +11,7 @@
 #include <stdexcept>
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+// usage: checkCUDAError("a descriptive name of this error")
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
 /**
@@ -26,6 +27,7 @@ inline int ilog2(int x) {
     return lg;
 }
 
+// computes the ceiling of log2(x), as an integer.
 inline int ilog2ceil(int x) {
     return x == 1 ? 0 : ilog2(x - 1) + 1;
 }
