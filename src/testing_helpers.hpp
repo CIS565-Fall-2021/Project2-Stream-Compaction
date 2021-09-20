@@ -17,9 +17,7 @@ int cmpArrays(int n, T *a, T *b) {
     return 0;
 }
 
-void printDesc(const char *desc) {
-    printf("==== %s ====\n", desc);
-}
+void printDesc(const char* desc);
 
 template<typename T>
 void printCmpResult(int n, T *a, T *b) {
@@ -37,40 +35,18 @@ void printCmpLenResult(int n, int expN, T *a, T *b) {
             cmpArrays(n, a, b) ? "FAIL VALUE" : "passed");
 }
 
-void zeroArray(int n, int *a) {
-    for (int i = 0; i < n; i++) {
-        a[i] = 0;
-    }
-}
+void zeroArray(int n, int* a);
 
-void onesArray(int n, int *a) {
-    for (int i = 0; i < n; i++) {
-        a[i] = 1;
-    }
-}
+void onesArray(int n, int* a);
 
-void genArray(int n, int *a, int maxval) {
-    srand(time(nullptr));
+void genArray(int n, int* a, int maxval);
 
-    for (int i = 0; i < n; i++) {
-        a[i] = rand() % maxval;
-    }
-}
-
-void printArray(int n, int *a, bool abridged = false) {
-    printf("    [ ");
-    for (int i = 0; i < n; i++) {
-        if (abridged && i + 2 == 15 && n > 16) {
-            i = n - 2;
-            printf("... ");
-        }
-        printf("%3d ", a[i]);
-    }
-    printf("]\n");
-}
+void printArray(int n, int* a, bool abridged = false);
 
 template<typename T>
 void printElapsedTime(T time, std::string note = "")
 {
     std::cout << "   elapsed time: " << time << "ms    " << note << std::endl;
 }
+
+void testMain();

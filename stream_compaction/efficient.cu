@@ -140,7 +140,7 @@ namespace StreamCompaction {
             cudaMemcpy(&inclusivePrefixSum, cuda_g_indices + newN - 1, sizeof(int), cudaMemcpyDeviceToHost);
             cudaMemcpy(&lastEle, cuda_g_bools + newN - 1, sizeof(int), cudaMemcpyDeviceToHost);
 
-            cudaMemcpy(odata, cuda_g_odata, sizeof(int) * newN, cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, cuda_g_odata, sizeof(int) * n, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
 
             cudaFree(cuda_g_odata);
@@ -203,6 +203,22 @@ namespace StreamCompaction {
         //    //odata[totalIdx] = s_idata[localIdx] + prevOdata;
         //}
 
+        //__global__ void kernInclusiveScanSerialInBlock(int n, int *odata) {
+        //    int bkDim = blockDim.x;
+        //    int index = ((blockIdx.x * bkDim) + threadIdx.x) * bkDim;
+        //    if (index >= n) {
+        //        return;
+        //    }
+        //    int loopLimit = n > bkDim ? bkDim : n;
+        //    int sum = 0;
+        //    for (int i = 0; i < loopLimit; ++i) {
+        //        int totalIndex = index + i;
+        //        int temp = odata[totalIndex];
+        //        sum += temp;
+        //        odata[totalIndex] = sum;
+        //    }
+        //}
+
         __global__ void kernInclusiveScanWorkEfficientInBlock(int n, int* odata) {
             extern __shared__ int sharedMemory[];
             int bkDim = blockDim.x;
@@ -234,8 +250,9 @@ namespace StreamCompaction {
 
             unsigned int stride = 2;
 
-            // Up sweep
-            for (; stride <= loopLimit; stride <<= 1) {
+            // Up sweep. It is not necessary to calculate the rightmost sum
+            //for (; stride <= loopLimit; stride <<= 1) {
+            for (; stride < loopLimit; stride <<= 1) {
                 localIdx = tid * stride + (stride - 1);
                 __syncthreads();
                 if (localIdx < loopLimit) {
@@ -245,7 +262,7 @@ namespace StreamCompaction {
             }
             //printf("tid:%d, stride:%d\n", tid, stride);
             
-            stride >>= 1;
+            //stride >>= 1; // Because the rightmost sum is not calculated, we don't need to halve the stride
             if (tid * stride + stride == loopLimit) {
                 s_odata[loopLimit - 1] = 0;
             }
@@ -267,11 +284,12 @@ namespace StreamCompaction {
             s_odata[localIdxToRead] += s_idata[localIdxToRead];
             s_odata[localIdxToRead2] += s_idata[localIdxToRead2];
 
+            // Write back
             odata[indexBaseInBlock + localIdxToRead] = s_odata[localIdxToRead];
             odata[indexBaseInBlock + localIdxToRead2] = s_odata[localIdxToRead2];
         }
 
-        void inclusiveScanInBlock(int newN, int* cuda_g_odata, int threadsPerBlock = 128) {
+        inline void inclusiveScanInBlock(int newN, int* cuda_g_odata, int threadsPerBlock = 128) {
             //for(int stride = 1; stride <= n; stride <<= 1) {
             //    int blockCount = (newN + (threadsPerBlock - 1)) / threadsPerBlock;
             //    //printf("stride:%d, blockCount:%d, threadsPerBlock:%d\n", stride, blockCount, threadsPerBlock);
@@ -344,12 +362,18 @@ namespace StreamCompaction {
         //}
 
         void scanGpuBatch(int newN, int logn, int* cuda_g_odata, int* cuda_g_blockSums, int* cuda_g_blockIncrements, int threadsPerBlock = 128,
-                int depth = 0, bool splitOnce = true) {
+                int depth = 0, bool splitOnce = false) {
             int batch = (newN + threadsPerBlock - 1) / threadsPerBlock;
             //printf("N:%d, blockCount:%d, threadsPerBlock:%d, logn:%d\n", newN, batch, threadsPerBlock, logn);//TEST
             if (batch > 0) {
                 if (batch > 1) {
-                    inclusiveScanInBlock(newN, cuda_g_odata, threadsPerBlock);
+                    //if (depth < 2) {
+                    //    int serialBatch = std::max(1, batch / threadsPerBlock);
+                    //    kernInclusiveScanSerialInBlock<<<serialBatch, threadsPerBlock>>>(newN, cuda_g_odata);
+                    //}
+                    //else {
+                        inclusiveScanInBlock(newN, cuda_g_odata, threadsPerBlock);
+                    //}
 
                     int nextNewN = batch;
                     int nextBatch = (nextNewN + threadsPerBlock - 1) / threadsPerBlock;
@@ -371,7 +395,6 @@ namespace StreamCompaction {
                         kernGenBlockSums<<<nextBatch, threadsPerBlock>>>(nextNewN, cuda_g_blockSums, cuda_g_odata);
                         scanGpuBatch(nextNewN, logn - logThPerBk, cuda_g_blockSums, cuda_g_blockSums + nextNewN, cuda_g_blockIncrements, threadsPerBlock,
                             depth + 1, splitOnce);
-                        // TODO
                         //kernGenBlockIncrementsToExclusive<<<batch, threadsPerBlock>>>(newN, cuda_g_blockIncrements, cuda_g_odata, cuda_g_blockSums);
                         //cudaMemcpy(cuda_g_odata, cuda_g_blockIncrements, sizeof(int) * (newN), cudaMemcpyDeviceToDevice);
 #if WRITE_EXC_WITH_INC
@@ -430,7 +453,7 @@ namespace StreamCompaction {
         }
 
         void compactGpuBatch(int newN, int logn, int* cuda_g_odata, int* cuda_g_bools, int* cuda_g_indices, int* cuda_g_blockSums, int* cuda_g_blockIncrements, 
-                const int* cuda_g_idata, int threadsPerBlock = 128, bool splitOnce = true) {
+                const int* cuda_g_idata, int threadsPerBlock = 128, bool splitOnce = false) {
             int blockCountSimplePara = (newN + (threadsPerBlock - 1)) / threadsPerBlock;
             Common::kernMapToBoolean<<<blockCountSimplePara, threadsPerBlock>>>(newN, cuda_g_bools, cuda_g_idata);
             cudaMemcpy(cuda_g_indices, cuda_g_bools, sizeof(int) * newN, cudaMemcpyDeviceToDevice);
@@ -483,7 +506,7 @@ namespace StreamCompaction {
             cudaMemcpy(&inclusivePrefixSum, cuda_g_indices + newN - 1, sizeof(int), cudaMemcpyDeviceToHost);
             cudaMemcpy(&lastEle, cuda_g_bools + newN - 1, sizeof(int), cudaMemcpyDeviceToHost);
 
-            cudaMemcpy(odata, cuda_g_odata, sizeof(int) * newN, cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, cuda_g_odata, sizeof(int) * n, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
 
             cudaFree(cuda_g_blockIncrements);
@@ -495,6 +518,106 @@ namespace StreamCompaction {
             cudaFree(cuda_g_indices);
 
             return inclusivePrefixSum + lastEle;
+        }
+
+        ///////// Sort
+
+        __global__ void kernMapToBooleanWithBit(int n, int* boolOnes, int* boolZeros, const int *idata, int bit) {
+            int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+            if (index < n) {
+                int nonZero = (idata[index] & (1 << bit)) >> bit;
+                boolOnes[index] = nonZero;
+                boolZeros[index] = 1 - nonZero;
+            }
+        }
+
+        __global__ void kernScatter01(int n, int *odata,
+                const int *idata, const int* boolOnes, const int* boolZeros, const int* indexZeros) {
+            int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+            if (index < n) {
+                int scatterIdx = indexZeros[index];
+                if (boolZeros[index] == 1) {
+                    odata[scatterIdx] = idata[index];
+                }
+                if (boolOnes[index] == 1) {
+                    int lastIndexZero = indexZeros[n - 1];
+                    int lastBoolZero = boolZeros[n - 1];
+                    int totalZeros = lastIndexZero + lastBoolZero;
+                    odata[index - scatterIdx + totalZeros] = idata[index];
+                }
+            }
+        }
+
+        void sortGpu(int newN, int logn, int* cuda_g_odata, int* cuda_g_boolOnes, int* cuda_g_boolZeros, int* cuda_g_indexOnes, int* cuda_g_indexZeros, int* cuda_g_blockSums, int* cuda_g_blockIncrements, 
+                int* cuda_g_idata, int threadsPerBlock = 128, bool splitOnce = false) {
+            int blockCountSimplePara = (newN + (threadsPerBlock - 1)) / threadsPerBlock;
+            // Suppose all nums are non-negative, so bit = 31 is not necessary.
+            for (int bit = 0; bit < 31; ++bit) {
+                if (bit > 0) {
+                    std::swap(cuda_g_odata, cuda_g_idata);
+                }
+                kernMapToBooleanWithBit<<<blockCountSimplePara, threadsPerBlock>>>(newN, cuda_g_boolOnes, cuda_g_boolZeros, cuda_g_idata, bit);
+                cudaMemcpy(cuda_g_indexZeros, cuda_g_boolZeros, sizeof(int) * newN, cudaMemcpyDeviceToDevice);
+                cudaMemcpy(cuda_g_indexOnes, cuda_g_boolOnes, sizeof(int) * newN, cudaMemcpyDeviceToDevice);
+                scanGpuBatch(newN, logn, cuda_g_indexZeros, cuda_g_blockSums, cuda_g_blockIncrements, threadsPerBlock, 0, splitOnce);
+                //scanGpuBatch(newN, logn, cuda_g_indexOnes, cuda_g_blockSums, cuda_g_blockIncrements, threadsPerBlock, 0, splitOnce);
+                kernScatter01<<<blockCountSimplePara, threadsPerBlock>>>(newN, cuda_g_odata, cuda_g_idata, cuda_g_boolOnes, cuda_g_boolZeros, cuda_g_indexZeros);
+            }
+        }
+
+        void sort(int n, int* odata, const int* idata) {
+            int threadsPerBlock = 512;//128
+
+            int* cuda_g_odata = nullptr;
+            int* cuda_g_idata = nullptr;
+            int* cuda_g_boolOnes = nullptr;
+            int* cuda_g_indexOnes = nullptr;
+            int* cuda_g_boolZeros = nullptr;
+            int* cuda_g_indexZeros = nullptr;
+
+            int* cuda_g_blockSums = nullptr;
+            int* cuda_g_blockIncrements = nullptr;
+
+            int logn = ilog2ceil(n);
+            size_t newN = 1i64 << logn;
+            size_t sizeNewN = sizeof(int) * newN;
+            cudaMalloc(&cuda_g_odata, sizeNewN);
+            cudaMalloc(&cuda_g_idata, sizeNewN);
+            cudaMalloc(&cuda_g_boolOnes, sizeNewN);
+            cudaMalloc(&cuda_g_indexOnes, sizeNewN);
+            cudaMalloc(&cuda_g_boolZeros, sizeNewN);
+            cudaMalloc(&cuda_g_indexZeros, sizeNewN);
+            cudaMemset(cuda_g_odata, 0x7FFFFFFF, sizeNewN);
+            cudaMemcpy(cuda_g_idata, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
+            cudaMemset(cuda_g_idata + n, 0x7FFFFFFF, sizeof(int) * (newN - n));
+
+            cudaMalloc(&cuda_g_blockSums, sizeNewN);
+            cudaMalloc(&cuda_g_blockIncrements, sizeNewN);
+
+            cudaMemset(cuda_g_blockSums, 0, sizeNewN);
+            cudaMemset(cuda_g_blockIncrements, 0x7FFFFFFF, sizeNewN);
+
+            timer().startGpuTimer();
+            // DONE
+            sortGpu(newN, logn, cuda_g_odata, cuda_g_boolOnes, cuda_g_boolZeros, cuda_g_indexOnes, cuda_g_indexZeros, cuda_g_blockSums, cuda_g_blockIncrements, cuda_g_idata, threadsPerBlock, false);
+            timer().endGpuTimer();
+
+            //int inclusivePrefixSum = 0, lastEle = 0;
+            //cudaMemcpy(&inclusivePrefixSum, cuda_g_indices + newN - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            //cudaMemcpy(&lastEle, cuda_g_bools + newN - 1, sizeof(int), cudaMemcpyDeviceToHost);
+
+            cudaMemcpy(odata, cuda_g_odata, sizeof(int) * n, cudaMemcpyDeviceToHost);
+            cudaDeviceSynchronize();
+
+            cudaFree(cuda_g_blockIncrements);
+            cudaFree(cuda_g_blockSums);
+
+            cudaFree(cuda_g_odata);
+            cudaFree(cuda_g_idata);
+            cudaFree(cuda_g_boolZeros);
+            cudaFree(cuda_g_indexZeros);
+            cudaFree(cuda_g_boolOnes);
+            cudaFree(cuda_g_indexOnes);
         }
     }
 

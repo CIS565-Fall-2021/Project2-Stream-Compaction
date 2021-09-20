@@ -40,11 +40,15 @@ add_subdirectory(stream_compaction)
 include_directories(.)
 
 set(headers
+    "src/main.hpp"
     "src/testing_helpers.hpp"
+    "src/recording_helpers.hpp"
     )
 
 set(sources
     "src/main.cpp"
+    "src/testing_helpers.cpp"
+    "src/recording_helpers.cpp"
     )
 
 list(SORT headers)
