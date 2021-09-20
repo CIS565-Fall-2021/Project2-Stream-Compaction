@@ -40,12 +40,10 @@ namespace StreamCompaction {
                 __syncthreads(); 
                 int index = threadIdx.x;
                 int previousIndex = index - stride;
-#if 0
                 if (previousIndex < 0)
                 {
                     previousIndex = 0;
                 }
-#endif
                 int temp = XY[index] + XY[previousIndex];
                 // make sure previous output has been consumed
                 __syncthreads();
