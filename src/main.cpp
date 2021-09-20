@@ -20,6 +20,10 @@ int *a = new int[SIZE];
 int *b = new int[SIZE];
 int *c = new int[SIZE];
 
+int* bookArraya = new int[8]{ 3, 1, 7, 0 ,4 ,1 ,6, 3 };
+int* bookArrayb = new int[8]{};
+const int BOOK_SIZE = 8;
+
 int main(int argc, char* argv[]) {
     // Scan tests
 
@@ -41,6 +45,15 @@ int main(int argc, char* argv[]) {
     StreamCompaction::CPU::scan(SIZE, b, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
     printArray(SIZE, b, true);
+
+    printf("\n");
+    
+    printArray(BOOK_SIZE, bookArraya, false);
+    zeroArray(BOOK_SIZE, bookArrayb);
+    printDesc("cpu scan, power-of-two");
+    StreamCompaction::CPU::scan(BOOK_SIZE, bookArrayb, bookArraya);
+    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
+    printArray(BOOK_SIZE, bookArrayb, false);
 
     zeroArray(SIZE, c);
     printDesc("cpu scan, non-power-of-two");
@@ -153,4 +166,7 @@ int main(int argc, char* argv[]) {
     delete[] a;
     delete[] b;
     delete[] c;
+
+    delete[] bookArraya;
+    delete[] bookArrayb;
 }
