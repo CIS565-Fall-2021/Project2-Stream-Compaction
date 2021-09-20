@@ -3,8 +3,6 @@
 #include "common.h"
 #include "naive.h"
 
-#define blockSize 128
-
 namespace StreamCompaction {
     namespace Naive {
         using StreamCompaction::Common::PerformanceTimer;
@@ -14,27 +12,6 @@ namespace StreamCompaction {
             return timer;
         }
         // TODO: __global__
-        __global__ void kernResetBuffer(int nPadded, int* dataPadded1, int* dataPadded2) {
-            int index = threadIdx.x + (blockIdx.x * blockDim.x);
-            if (index >= nPadded) {
-                return;
-            }
-
-            // reset memory 
-            dataPadded1[index] = 0; 
-            dataPadded2[index] = 0;
-        }
-
-        __global__ void kernCpyArr(int nPadded, int* dataPadded1, const int* dataPadded2) {
-            int index = threadIdx.x + (blockIdx.x * blockDim.x);
-            if (index >= nPadded) {
-                return;
-            }
-
-            // reset memory 
-            dataPadded1[index] = dataPadded2[index];
-            
-        }
 
         __global__ void kernExclusive(int nPadded, const int* dataPadded1, int* dataPadded2) {
             int index = threadIdx.x + (blockIdx.x * blockDim.x);
@@ -73,7 +50,7 @@ namespace StreamCompaction {
             int depth = ilog2ceil(n); 
             int nPadded = 1 << depth;
 
-            int* dev_dataPadded1; int* dev_dataPadded2, int* temp;
+            int* dev_dataPadded1; int* dev_dataPadded2;
             cudaMalloc((void**)&dev_dataPadded1, nPadded * sizeof(int));
             checkCUDAError("cudaMalloc dev_dataExtended1 failed!");
             cudaMalloc((void**)&dev_dataPadded2, nPadded * sizeof(int));
@@ -82,13 +59,10 @@ namespace StreamCompaction {
             // set blocks and threads 
             dim3 threadsPerBlock(blockSize);
             dim3 fullBlocksPerGrid(std::ceil((double) nPadded / blockSize));
-
-            // reset idata buffer to 0, reset odata buffer to quiet_NaN
-            kernResetBuffer<<<fullBlocksPerGrid, threadsPerBlock>>>(nPadded, dev_dataPadded1, dev_dataPadded2);
             
             // copy idata to device memory 
+            cudaMemset(dev_dataPadded1, 0, nPadded * sizeof(int));
             cudaMemcpy(dev_dataPadded1, idata, n * sizeof(int), cudaMemcpyHostToDevice); 
-            // cudaDeviceSynchronize(); 
 
             // begin scan process
             timer().startGpuTimer();

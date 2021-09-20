@@ -6,6 +6,8 @@
  * @copyright University of Pennsylvania
  */
 
+#define fibonacciArr 1
+
 #include <cstdio>
 #include <stream_compaction/cpu.h>
 #include <stream_compaction/naive.h>
@@ -13,7 +15,12 @@
 #include <stream_compaction/thrust.h>
 #include "testing_helpers.hpp"
 
+#ifdef fibonacciArr 
+const int SIZE = 1 << 3; // feel free to change the size of array
+#else
 const int SIZE = 1 << 14; // feel free to change the size of array
+#endif // !fibonacciArr 
+
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -27,8 +34,15 @@ int main(int argc, char* argv[]) {
     printf("** SCAN TESTS **\n");
     printf("****************\n");
 
+#ifdef fibonacciArr
+    for (int i = 0; i < SIZE; i++) {
+        a[i] = i;
+    }
+#else 
     genArray(SIZE - 1, a, 50);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
+#endif // !fibonacciArr
+
     printArray(SIZE, a, true);
 
     // initialize b using StreamCompaction::CPU::scan you implement
@@ -83,14 +97,14 @@ int main(int argc, char* argv[]) {
     printDesc("work-efficient scan, power-of-two");
     StreamCompaction::Efficient::scan(SIZE, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(SIZE, c, true);
+    printArray(SIZE, c, true);
     printCmpResult(SIZE, b, c);
 
     zeroArray(SIZE, c);
     printDesc("work-efficient scan, non-power-of-two");
     StreamCompaction::Efficient::scan(NPOT, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(NPOT, c, true);
+    printArray(NPOT, c, true);
     printCmpResult(NPOT, b, c);
 
     zeroArray(SIZE, c);
