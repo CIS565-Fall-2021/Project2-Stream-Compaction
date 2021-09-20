@@ -4,7 +4,7 @@
 #include "naive.h"
 #include <iostream>
 
-#define blockSize 128
+#define blockSize 256
 dim3 threadsPerBlock(blockSize);
 
 int *dev_data1;

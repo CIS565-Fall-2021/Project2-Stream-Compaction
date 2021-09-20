@@ -4,7 +4,7 @@
 #include "efficient.h"
 #include <iostream>
 
-#define blockSize 128
+#define blockSize 256
 int *dev_data_scan;
 int *dev_compact_in;
 int* dev_compact_out;
@@ -148,6 +148,11 @@ namespace StreamCompaction {
             cudaMemcpy(odata, dev_bools, n * sizeof(int), cudaMemcpyDeviceToHost);
 
             scanHelper(n, odata);
+
+            
+                std::cout << "Scan res: [" << odata[0] << ", " << odata[1] << ", " << odata[2] << ", " << odata[3] << ", "
+                    << odata[4] << ", " << odata[5] << ", " << odata[6] << ", " << odata[7] << ", "
+                    << odata[8] << ", " << odata[9] << ", " << odata[10] << ", " << odata[11] << ", " << odata[12] << ", " << odata[13] << "]" << std::endl;
 
             int outSize = odata[n - 1];
             cudaMalloc((void**)&dev_compact_out, outSize * sizeof(int));
