@@ -51,25 +51,24 @@ namespace StreamCompaction {
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
-        void scan(int N, int *odata, const int *idata) {
-
+        void scan(int n, int* odata, const int* idata) {
             // Done - Part 3.1
-            int tree_depth = ilog2ceil(N);
+            int tree_depth = ilog2ceil(n);
             int data_length = 1 << tree_depth;
             int data_bytes = data_length * sizeof(int);
 
             int* dev_data;
             cudaMalloc((void**)&dev_data, data_bytes);
             cudaMemset(dev_data, 0, data_bytes);
-            cudaMemcpy(dev_data, idata, N * sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_data, idata, n * sizeof(int), cudaMemcpyHostToDevice);
 
             timer().startGpuTimer();
-            dim3 fullBlocksPerGrid(data_length + BLOCK_SIZE - 1 / BLOCK_SIZE);
+            dim3 fullBlocksPerGrid((data_length + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
             // Perform up sweep
-            for (int d = 0; d < tree_depth - 1; d++)
+            for (int d = 0; d <= tree_depth - 1; d++)
             {
-                kernUpSweep <<<fullBlocksPerGrid, BLOCK_SIZE>>>(data_length, d, dev_data);
+                kernUpSweep<<<fullBlocksPerGrid, BLOCK_SIZE>>>(data_length, d, dev_data);
             }
 
             // Zero out the root
@@ -78,13 +77,13 @@ namespace StreamCompaction {
             // Perform down sweep
             for (int d = tree_depth - 1; d >= 0; d--)
             {
-                kernDownSweep <<<fullBlocksPerGrid, BLOCK_SIZE>>>(data_length, d, dev_data);
+                kernDownSweep<<<fullBlocksPerGrid, BLOCK_SIZE>>>(data_length, d, dev_data);
             }
 
             timer().endGpuTimer();
 
             // Copy scanned array to host
-            cudaMemcpy(odata, dev_data, N * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, dev_data, n * sizeof(int), cudaMemcpyDeviceToHost);
             cudaFree(dev_data);
         }
 
@@ -98,6 +97,7 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int *odata, const int *idata) {
+            // Done-Part 3.2
             int tree_depth = ilog2ceil(n);
             int data_length = 1 << tree_depth;
             int data_bytes = data_length * sizeof(int);
@@ -118,15 +118,14 @@ namespace StreamCompaction {
             cudaMalloc((void**)&dev_scanned_indices, data_bytes);
 
             timer().startGpuTimer();
-            // Done-Part 3.2
-            dim3 fullBlocksPerGrid((n + BLOCK_SIZE - 1) / BLOCK_SIZE);
+            dim3 fullBlocksPerGrid((data_length + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
             // Transform input into binary array
             StreamCompaction::Common::kernMapToBoolean<<<fullBlocksPerGrid, BLOCK_SIZE>>>(data_length, dev_valid_indices, dev_orig_data);
             cudaMemcpy(dev_scanned_indices, dev_valid_indices, data_bytes, cudaMemcpyDeviceToDevice);
 
             // Perform up sweep
-            for (int d = 0; d < tree_depth - 1; d++)
+            for (int d = 0; d <= tree_depth - 1; d++)
             {
                 kernUpSweep<<<fullBlocksPerGrid, BLOCK_SIZE>>>(data_length, d, dev_scanned_indices);
             }
