@@ -3,6 +3,9 @@
 #include "common.h"
 #include "naive.h"
 
+#define blockSize 1024
+dim3 threadsPerBlock(blockSize);
+
 namespace StreamCompaction {
     namespace Naive {
         using StreamCompaction::Common::PerformanceTimer;
@@ -11,15 +14,77 @@ namespace StreamCompaction {
             static PerformanceTimer timer;
             return timer;
         }
-        // TODO: __global__
+        int* dev_array_in;
+        int* dev_array_dep1;
+        int* dev_array_dep2;
+        int* dev_array_out;
+        
+        __global__ void kernScanLayer(
+            int array_length, int stride, int* array_in, int* array_out) {
+            // compute one layer of scan in parallel.
+            int index = threadIdx.x + (blockIdx.x * blockDim.x);
+            if (index >= array_length - stride) {
+                return;
+            }
+            array_out[index + stride] = array_in[index] + array_in[index + stride];
+            __syncthreads();
+        }
 
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
+            int depth = ilog2ceil(n);
+            int array_length = pow(2, depth);
+            if (ilog2(n) != depth) {
+                int* new_idata = new int[array_length];
+                memset(new_idata, 0, array_length * sizeof(int));
+                memcpy(new_idata, idata, n * sizeof(int));
+                idata = new_idata;
+            }
+
+            int* host_dev_array_dep1 = new int[array_length];
+            memset(host_dev_array_dep1, 0, 1 * sizeof(int));
+            memcpy(host_dev_array_dep1 + 1, idata, (array_length - 1) * sizeof(int));
+
+
+            dim3 fullBlocksPerGrid((array_length + blockSize - 1) / blockSize);
+            cudaMalloc((void**)&dev_array_dep1, array_length * sizeof(int));
+            cudaMalloc((void**)&dev_array_dep2, array_length * sizeof(int));
+            cudaMemcpy(dev_array_dep1, host_dev_array_dep1, array_length * sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_array_dep2, host_dev_array_dep1, array_length * sizeof(int), cudaMemcpyHostToDevice);
+
             timer().startGpuTimer();
-            // TODO
+            
+            for (int depth_ind = 1; depth_ind <= depth; depth_ind++) {
+                int stride = pow(2, depth_ind - 1);
+                if (depth_ind != 1) {
+                    cudaMemcpy(dev_array_dep1, dev_array_dep2, array_length * sizeof(int), cudaMemcpyDeviceToDevice);
+                }
+                kernScanLayer << <fullBlocksPerGrid, blockSize >> > (array_length, stride, dev_array_dep1, dev_array_dep2);
+                
+            }
             timer().endGpuTimer();
+            cudaMemcpy(odata, dev_array_dep2, array_length * sizeof(int), cudaMemcpyDeviceToHost);
+
+            //int* array_0 = new int[array_length];
+            //int* array_1 = new int[array_length];
+            //cudaMemcpy(array_0, dev_array_dep1, array_length * sizeof(int), cudaMemcpyDeviceToHost);
+            //cudaMemcpy(array_1, dev_array_dep2, array_length * sizeof(int), cudaMemcpyDeviceToHost);
+            //printf("\n");
+            //printf("\n");
+            //for (int ind = 0; ind < array_length; ind++) {
+            //    printf("%d ", array_0[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+            //for (int ind = 0; ind < array_length; ind++) {
+            //    printf("%d ", array_1[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+            
+            
         }
     }
 }
