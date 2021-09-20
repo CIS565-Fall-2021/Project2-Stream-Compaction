@@ -16,7 +16,7 @@
 #include "testing_helpers.hpp"
 
 // The tests default to an array of size 1 << 8 = 256
-const int SIZE = 1 << 8; // feel free to change the size of array
+const int SIZE = 1 << 9; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -112,14 +112,14 @@ int main(int argc, char* argv[]) {
     printf("\n");
 
 #endif
+    
     zeroArray(SIZE, c);
     printDesc("naive scan, power-of-two");
     StreamCompaction::Naive::scan(SIZE, c, a);
     printElapsedTime(StreamCompaction::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     printArray(SIZE, c, true);
     printCmpResult(SIZE, b, c);
-
-#if 0
+    
     /* For bug-finding only: Array of 1s to help find bugs in stream compaction or scan
     onesArray(SIZE, c);
     printDesc("1s array for finding bugs");
@@ -132,6 +132,9 @@ int main(int argc, char* argv[]) {
     printElapsedTime(StreamCompaction::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     //printArray(SIZE, c, true);
     printCmpResult(NPOT, b, c);
+
+#if 0
+
 
     zeroArray(SIZE, c);
     printDesc("work-efficient scan, power-of-two");
