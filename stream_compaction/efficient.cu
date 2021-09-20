@@ -39,7 +39,7 @@ namespace StreamCompaction {
             }
         }
 
-        // Add each value at (index+2^(d+1)-1) to the value at (index+2^d-1) in place
+        // Swap values of left and right children, then add value of left to right
         __global__ void kern_child_swap_add(int n, int d, int* idata) {
             int index = threadIdx.x + (blockIdx.x * blockDim.x);
             if (index >= n) {
@@ -220,7 +220,7 @@ namespace StreamCompaction {
             }
         }
 
-        // Add each value at (index+2^(d+1)-1) to the value at (index+2^d-1) in place
+        // Swap values of left and right children, then add value of left to right
         __global__ void kern_child_swap_add(int n, int d, int *idata) {
             unsigned long int index = threadIdx.x + (blockIdx.x * blockDim.x);
 
@@ -297,73 +297,107 @@ namespace StreamCompaction {
             cudaFree(dev_array);
             checkCUDAError("cudaFree failed!");
         }
+    }
+
+    namespace Efficient_Shared {
+        using StreamCompaction::Common::PerformanceTimer;
+        PerformanceTimer &timer()
+        {
+            static PerformanceTimer timer;
+            return timer;
+        }
+
+        // Perform scan in place on arr
+        // Use shared memory to reduce memory access latency
+        // Notice that this can only process within ONE block, so n is at most as TWICE as max number of threads in a block
+        // 
+        // Reference: GPU Gem Ch 39 Example 39.2
+        // https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
+        __global__ void kern_prescan(int n, int *arr) {
+            extern __shared__ int shared_buffer[];
+
+            int index = threadIdx.x;
+            int offset = 1;
+
+            // Copy data to shared memory
+            shared_buffer[index * 2] = arr[index * 2];
+            shared_buffer[index * 2 + 1] = arr[index * 2 + 1];
+
+            // Up-Sweep
+            for (int d = n >> 1; d > 0; d >>= 1) {
+                // Synchronize all threads at each turn
+                __syncthreads();
+
+                // Reduction
+                if (index < d) {
+                    shared_buffer[offset * (2 * index + 2) - 1] += shared_buffer[offset * (2 * index + 1) - 1];
+                }
+
+                // At next turn, double the stride to access
+                offset *= 2;
+            }
+
+            // Clear root
+            if (index == 0) {
+                shared_buffer[n - 1] = 0;
+            }
+
+            // Down-Sweep
+            for (int d = 1; d < n; d *= 2) {
+                // At next turn, halve the stride to access
+                offset >>= 1;
+
+                // Synchronize all threads at each turn
+                __syncthreads();
+
+                // Swap values of left and right children, then add value of left to right
+                if (index < d) {
+                    int temp = shared_buffer[offset * (2 * index + 1) - 1];
+                    shared_buffer[offset * (2 * index + 1) - 1] = shared_buffer[offset * (2 * index + 2) - 1];
+                    shared_buffer[offset * (2 * index + 2) - 1] += temp;
+                }
+            }
+
+            __syncthreads();
+
+            // Copy data back
+            arr[index * 2] = shared_buffer[index * 2];
+            arr[index * 2 + 1] = shared_buffer[index * 2 + 1];
+        }
 
         /**
-         * Performs stream compaction on idata, storing the result into odata.
-         * All zeroes are discarded.
-         *
-         * @param n      The number of elements in idata.
-         * @param odata  The array into which to store elements.
-         * @param idata  The array of elements to compact.
-         * @returns      The number of elements remaining after compaction.
+         * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
-        int compact(int n, int *odata, const int *idata) {
-            dim3 fullBlocksPerGrid((n + BLOCK_SIZE - 1) / BLOCK_SIZE);
-
-            // Used for computing the number of elements remaining after compaction
-            int *last_elements = new int[2];
-
+        void scan(int n, int *odata, const int *idata, bool timing_on) {
             // Create device array
+            // Rounded to next power of two
+            int round_n = 1 << ilog2ceil(n);
             int *dev_array;
-            int *dev_bool_buffer;
-            int *dev_scan_buffer;
-            int *dev_res;
-            cudaMalloc((void **)&dev_array, n * sizeof(int));
-            cudaMalloc((void **)&dev_bool_buffer, n * sizeof(int));
-            cudaMalloc((void **)&dev_scan_buffer, n * sizeof(int));
-            cudaMalloc((void **)&dev_res, n * sizeof(int));
+            cudaMalloc((void **)&dev_array, round_n * sizeof(int));
             checkCUDAError("cudaMalloc failed!");
 
             // Copy data to GPU
             cudaMemcpy(dev_array, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
             checkCUDAError("cudaMemcpy failed!");
 
-            timer().startGpuTimer();
+            if (timing_on) {
+                timer().startGpuTimer();
+            }
 
-            // Set 1 for non-zero elements
-            StreamCompaction::Common::kernMapToBoolean << <fullBlocksPerGrid, BLOCK_SIZE >> > (n, dev_bool_buffer, dev_array);
-            checkCUDAError("kernMapToBoolean failed!");
+            kern_prescan << <1, (round_n >> 1), round_n * sizeof(int) >> > (round_n, dev_array);
+            checkCUDAError("kern_prescan failed!");
 
-            // Scan
-            scan(n, dev_scan_buffer, dev_bool_buffer, false);
-
-            // Scatter
-            StreamCompaction::Common::kernScatter << <fullBlocksPerGrid, BLOCK_SIZE >> > (n, dev_res, dev_array, dev_bool_buffer, dev_scan_buffer);
-            checkCUDAError("kernScatter failed!");
-
-            timer().endGpuTimer();
-
-            // Fetch last element of bool array and scan array respectively
-            cudaMemcpy(last_elements, dev_bool_buffer + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
-            cudaMemcpy(last_elements + 1, dev_scan_buffer + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
-            checkCUDAError("cudaMemcpy back failed!");
-
-            // Compute the number of elements remaining after compaction
-            int num_element = last_elements[0] + last_elements[1];
-            free(last_elements);
+            if (timing_on) {
+                timer().endGpuTimer();
+            }
 
             // Copy data back
-            cudaMemcpy(odata, dev_res, sizeof(int) * num_element, cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, dev_array, sizeof(int) * n, cudaMemcpyDeviceToHost);
             checkCUDAError("cudaMemcpy back failed!");
 
             // Cleanup
             cudaFree(dev_array);
-            cudaFree(dev_bool_buffer);
-            cudaFree(dev_scan_buffer);
-            cudaFree(dev_res);
             checkCUDAError("cudaFree failed!");
-
-            return num_element;
         }
     }
 }

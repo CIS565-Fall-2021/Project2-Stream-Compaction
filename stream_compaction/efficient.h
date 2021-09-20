@@ -17,7 +17,13 @@ namespace StreamCompaction {
         StreamCompaction::Common::PerformanceTimer &timer();
 
         void scan(int n, int *odata, const int *idata, bool timing_on);
+    }
 
-        int compact(int n, int *odata, const int *idata);
+
+
+    namespace Efficient_Shared {
+        StreamCompaction::Common::PerformanceTimer &timer();
+
+        void scan(int n, int *odata, const int *idata, bool timing_on);
     }
 }
