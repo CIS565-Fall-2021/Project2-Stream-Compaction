@@ -39,8 +39,9 @@ namespace StreamCompaction {
             // DONE
             int size = 0;
             for (int i = 0; i < n; ++i) {
-                if (idata[i] != 0) {
-                    odata[size++] = idata[i];
+                int idatai = idata[i];
+                if (idatai != 0) {
+                    odata[size++] = idatai;
                 }
             }
             timer().endCpuTimer();
