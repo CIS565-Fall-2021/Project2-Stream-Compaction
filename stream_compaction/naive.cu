@@ -38,7 +38,6 @@ namespace StreamCompaction {
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
             
             int* dev_readable; 
             int* dev_writeable; 
@@ -51,6 +50,7 @@ namespace StreamCompaction {
 
             cudaMemcpy(dev_readable, idata, paddedN * sizeof(int), cudaMemcpyHostToDevice);
 
+            timer().startGpuTimer();
             // --- begin iterative all-prefix-sum
 
             for (int d = 1; d <= log2(paddedN); d++) {
