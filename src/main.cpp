@@ -7,6 +7,8 @@
  */
 
 #include <cstdio>
+#include <sstream>
+#include <fstream>
 #include <stream_compaction/cpu.h>
 #include <stream_compaction/naive.h>
 #include <stream_compaction/efficient.h>
@@ -24,7 +26,49 @@ int* bookArraya = new int[8]{ 3, 1, 7, 0 ,4 ,1 ,6, 3 };
 int* bookArrayb = new int[8]{};
 const int BOOK_SIZE = 8;
 
+std::string deviceName;
+int deviceMaxThreadsPerBlock;
+int deviceSharedMemPerBlock;
+int deviceMaxThreadsPerSM;
+int deviceMaxBlocksPerSM;
+
 int main(int argc, char* argv[]) {
+    cudaDeviceProp deviceProp;
+    int gpuDevice = 0;
+    int device_count = 0;
+    cudaGetDeviceCount(&device_count);
+    if (gpuDevice > device_count) {
+        std::cout
+            << "Error: GPU device number is greater than the number of devices!"
+            << " Perhaps a CUDA-capable GPU is not installed?"
+            << std::endl;
+        return false;
+    }
+    cudaGetDeviceProperties(&deviceProp, gpuDevice);
+    int major = deviceProp.major;
+    int minor = deviceProp.minor;
+    deviceMaxThreadsPerBlock = deviceProp.maxThreadsPerBlock;
+    deviceSharedMemPerBlock = deviceProp.sharedMemPerBlock;
+    deviceMaxThreadsPerSM = deviceProp.maxThreadsPerMultiProcessor;
+    deviceMaxBlocksPerSM = deviceProp.maxBlocksPerMultiProcessor;
+  
+   
+
+    std::ostringstream ss;
+    ss << " [SM " << major << "." << minor << " " << deviceProp.name << "]"
+        << "\n Max threads per block: " << deviceMaxThreadsPerBlock
+        << "\n Shared memory per block: " << deviceSharedMemPerBlock << " bytes"
+        // << "\n Shared memory in each block can fit " << deviceSharedMemPerBlock / sizeof(int) << " number of integers"
+        << "\n Max threads per SM: " << deviceMaxThreadsPerSM
+        << "\n Max blocks per SM: " << deviceMaxBlocksPerSM
+        << "\n Max grid size: " << deviceProp.maxGridSize[0] << ", "
+        << deviceProp.maxGridSize[1] << ", " << deviceProp.maxGridSize[2];
+
+
+    deviceName = ss.str();
+
+    std::cout << deviceName << '\n';
+
     // Scan tests
 
     printf("\n");
@@ -66,14 +110,15 @@ int main(int argc, char* argv[]) {
 
     printf("\n");
 
-#if 0
+
     zeroArray(SIZE, c);
     printDesc("naive scan, power-of-two");
     StreamCompaction::Naive::scan(SIZE, c, a);
     printElapsedTime(StreamCompaction::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(SIZE, c, true);
+    printArray(SIZE, c, true);
     printCmpResult(SIZE, b, c);
 
+#if 0
     /* For bug-finding only: Array of 1s to help find bugs in stream compaction or scan
     onesArray(SIZE, c);
     printDesc("1s array for finding bugs");
