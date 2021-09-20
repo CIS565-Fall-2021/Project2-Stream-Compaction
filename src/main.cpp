@@ -80,6 +80,7 @@ int main(int argc, char* argv[]) {
     a[SIZE - 1] = 0;
     printArray(SIZE, a, true);
 
+#if 0
     // initialize b using StreamCompaction::CPU::scan you implement
     // We use b for further comparison. Make sure your StreamCompaction::CPU::scan is correct.
     // At first all cases passed because b && c are all zeroes.
@@ -110,7 +111,7 @@ int main(int argc, char* argv[]) {
 
     printf("\n");
 
-
+#endif
     zeroArray(SIZE, c);
     printDesc("naive scan, power-of-two");
     StreamCompaction::Naive::scan(SIZE, c, a);
@@ -162,6 +163,7 @@ int main(int argc, char* argv[]) {
 
 #endif
 
+#if 0
     printf("\n");
     printf("*****************************\n");
     printf("** STREAM COMPACTION TESTS **\n");
@@ -200,7 +202,7 @@ int main(int argc, char* argv[]) {
     printArray(count, c, true);
     printCmpLenResult(count, expectedCount, b, c);
 
-#if 0
+
     zeroArray(SIZE, c);
     printDesc("work-efficient compact, power-of-two");
     count = StreamCompaction::Efficient::compact(SIZE, c, a);
