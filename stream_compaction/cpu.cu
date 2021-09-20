@@ -30,19 +30,31 @@ namespace StreamCompaction {
 
         /**
          * CPU stream compaction without using the scan function.
-         *
+         * This stream compaction method will remove 0s from an array of ints.
          * @returns the number of elements remaining after compaction.
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
             // TODO
+            // Given an array of elements, create a new array with all the 0s 
+            // removed while preserving order
+            int index = 0;
+            for (int i = 0; i < n; i++)
+            {
+                int thisElement = idata[i];
+                if (thisElement != 0)
+                {
+                    odata[index] = thisElement;
+                    index++;
+                }
+            }
             timer().endCpuTimer();
-            return -1;
+            return n - index;
         }
 
         /**
          * CPU stream compaction using scan and scatter, like the parallel version.
-         *
+         * This stream compaction method will remove 0s from an array of ints.
          * @returns the number of elements remaining after compaction.
          */
         int compactWithScan(int n, int *odata, const int *idata) {
