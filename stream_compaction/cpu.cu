@@ -14,6 +14,7 @@ namespace StreamCompaction {
 
         /**
          * CPU scan (prefix sum).
+         * CPU scan (exclusive prefix sum).
          * For performance analysis, this is supposed to be a simple for loop.
          * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
          */
