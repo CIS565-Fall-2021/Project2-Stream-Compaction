@@ -17,6 +17,7 @@ namespace StreamCompaction {
 		// TODO: __global__
 		int* dev_buf1;
 		int* dev_buf2;
+		int* dev_bufLoader;
 #define blockSize 1024
 
 		__global__ void performScan(int d, int* buf1, int* buf2, int N)
@@ -58,6 +59,7 @@ namespace StreamCompaction {
 		void FreeMemory() {
 			cudaFree(dev_buf1);
 			cudaFree(dev_buf2);
+			cudaFree(dev_bufLoader);
 		}
 
 		void AllocateMemory(int n)
@@ -66,8 +68,26 @@ namespace StreamCompaction {
 			checkCUDAErrorWithLine("cudaMalloc dev_vel2 failed!");
 			cudaMalloc((void**)&dev_buf2, n * sizeof(int));
 			checkCUDAErrorWithLine("cudaMalloc dev_vel2 failed!");
+			cudaMalloc((void**)&dev_bufLoader, n * sizeof(int));
+			checkCUDAErrorWithLine("cudaMalloc dev_bufLoader failed!");
 			cudaDeviceSynchronize();
 		}
+
+		__global__ void RightShiftAddZeros(int* buf, int* buf_loader, int N, int difference)
+		{
+			int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+			if (index > N - 1)
+			{
+				return;
+			}
+			if (index < difference)
+			{
+				buf[index] = 0;
+				return;
+			}
+			buf[index] = buf_loader[index - difference];
+		}
+
 
 		/**
 		 * Performs prefix-sum (aka scan) on idata, storing the result into odata.
@@ -77,52 +97,22 @@ namespace StreamCompaction {
 			// TODO
 
 			int power2 = 1;
-			int nearesttwo = 2;
+			int nearesttwo = 1 << ilog2ceil(n);
 
-			for (int i = 0; i < n; i++)
-			{
-				nearesttwo = nearesttwo << 1;
-				if (nearesttwo >= n)
-				{
-					break;
-				}
-			}
 			int difference = nearesttwo - n;
 
-			int finalMemSize = n + difference;
+			int finalMemSize = nearesttwo;
 
-			int* arr_z = new int[finalMemSize];
 
-			for (int i = 0; i < finalMemSize; i++)
-			{
-				if (i < difference)
-				{
-					arr_z[difference] = 0;
-					continue;
-				}
-				arr_z[i] = idata[i - difference];
-			}
-
-			for (int i = 0; i < difference; i++)
-			{
-				arr_z[i] = 0;
-			}
-			for (int i = 0; i < n; i++)
-			{
-				arr_z[i + difference] = idata[i];
-			}
-
-	/*		printf(" \n Array Before:");
-			for (int i = 0; i < finalMemSize; i++)
-			{
-				printf("%3d ", arr_z[i]);
-			}
-			printf("\n");*/
-			int d = ilog2(finalMemSize);
 			AllocateMemory(finalMemSize);
-			cudaMemcpy(dev_buf1, arr_z, sizeof(int) * finalMemSize, cudaMemcpyHostToDevice);
+
 
 			dim3 fullBlocksPerGrid((finalMemSize + blockSize - 1) / blockSize);
+			cudaMemcpy(dev_bufLoader, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
+			RightShiftAddZeros << < fullBlocksPerGrid, blockSize >> > (dev_buf1, dev_bufLoader, finalMemSize, difference);
+
+
+			int d = ilog2(finalMemSize);
 			cudaDeviceSynchronize();
 			for (int i = 1; i <= d; i++)
 			{
@@ -131,8 +121,8 @@ namespace StreamCompaction {
 				std::swap(dev_buf1, dev_buf2);
 			}
 
-			ShiftRight << < fullBlocksPerGrid, blockSize >> > (dev_buf1, dev_buf2, finalMemSize, difference);
-			cudaMemcpy(odata, dev_buf2, sizeof(int) * finalMemSize, cudaMemcpyDeviceToHost);
+			ShiftRight << < fullBlocksPerGrid, blockSize >> > (dev_buf1, dev_buf2, n, difference);
+			cudaMemcpy(odata, dev_buf2, sizeof(int) * n, cudaMemcpyDeviceToHost);
 
 		
 			/*printf(" \n Array After:");*/

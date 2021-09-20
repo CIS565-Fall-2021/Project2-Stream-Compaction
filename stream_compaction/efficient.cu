@@ -154,11 +154,12 @@ namespace StreamCompaction {
 			}
 
 			RightShiftDeleteZeroes << < fullBlocksPerGrid, blockSize >> > (dev_bufloader, dev_buf, n, difference);
-			cudaMemcpy(odata, dev_bufloader, sizeof(int) * finalMemSize, cudaMemcpyDeviceToHost);
+			cudaMemcpy(odata, dev_bufloader, sizeof(int) * n, cudaMemcpyDeviceToHost);
 	
 			timer().endGpuTimer();
 
 			FreeMemory();
+			cudaDeviceSynchronize();
 		}
 
 		int* dev_buf2;
@@ -205,7 +206,7 @@ namespace StreamCompaction {
 			}
 
 			RightShiftDeleteZeroes << < fullBlocksPerGrid, blockSize >> > (dev_bufloader2, dev_buf2, n, difference);
-			cudaMemcpy(odata, dev_bufloader2, sizeof(int) * finalMemSize, cudaMemcpyDeviceToHost);
+			cudaMemcpy(odata, dev_bufloader2, sizeof(int) * n, cudaMemcpyDeviceToHost);
 			FreeMemory2();
 		}
 
@@ -263,7 +264,7 @@ namespace StreamCompaction {
 			{
 				return numElements + 1; // Since indexing start from 0
 			}
-
+			cudaDeviceSynchronize();
 			return numElements; //if last element boolean is 0 its scan result include 1 extra sum counting for 0 index
 		}
 	}
