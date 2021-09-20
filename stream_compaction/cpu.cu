@@ -89,8 +89,8 @@ namespace StreamCompaction
                 arrPtr++;
             }
             timer().endCpuTimer();
-            delete tmpData2;
-            delete tmpData;
+            delete[] tmpData2;
+            delete[] tmpData;
             return retVal;
         }
     }
