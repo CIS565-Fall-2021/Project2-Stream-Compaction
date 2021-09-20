@@ -205,3 +205,14 @@ My implementation is sweeping the 31 bits of the integer naively (Suppose all th
 
 - All the raw data for performance analysis can be found in the `profile` folder.
 
+
+
+## Questions and Answers
+
+- To guess at what might be happening inside the Thrust implementation.
+  - It is shown in [Performance Analysis](#performance-analysis).
+- Can you find the performance bottlenecks? Is it memory I/O? Computation? Is it different for each implementation?
+  - I can find some. I believe the main bottleneck is memory I/O for the `Work-Efficient` series, because it is faster with the hierarchical implementation. It may need more computation but take advantage of shared memory. Actually I haven't done the implementation without bank conflict. This may affect the latency of accessing shared memory. At least the memory I/O strategy can still be improved to make the `Work-Efficient-Hierarchical` faster. However, for the `Naïve` implementation, I think the computation is also a bottleneck, because even the memory-unfriendly `Work-Efficient` implementation performs much better than `Naïve` implementation. It means this implementation arranges too many threads for computation that the GPU cannot deal with it very well, as the GPU can run limited blocks at the same time. 
+
+
+
