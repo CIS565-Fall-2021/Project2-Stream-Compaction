@@ -10,10 +10,12 @@
 #include <chrono>
 #include <stdexcept>
 
-#define blockSize 512
+#define blockSize 256
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
+
+#define checkCUDAErrorWithLine(msg) checkCUDAError(msg, __LINE__)
 
 /**
  * Check for CUDA errors; print and exit if there was a problem.

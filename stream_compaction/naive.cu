@@ -3,8 +3,6 @@
 #include "common.h"
 #include "naive.h"
 
-#define checkCUDAErrorWithLine(msg) checkCUDAError(msg, __LINE__)
-
 namespace StreamCompaction
 {
     namespace Naive
@@ -15,7 +13,7 @@ namespace StreamCompaction
             static PerformanceTimer timer;
             return timer;
         }
-        __global__ void kernScan(int n, int layer, int *odata, const int *idata)
+        __global__ void kernScanNaive(int n, int layer, int *odata, const int *idata)
         {
             int index = (blockIdx.x * blockDim.x) + threadIdx.x;
             if (index >= n)
@@ -24,7 +22,8 @@ namespace StreamCompaction
             }
             int offset = pow(2, layer);
             int tmp = idata[index];
-            odata[index] = index < offset ? tmp : tmp + idata[index - offset];
+            odata[index] = tmp + (index >= offset) * idata[index - offset];
+            // index < offset ? tmp : tmp + idata[index - offset];
         }
 
         /**
@@ -34,27 +33,25 @@ namespace StreamCompaction
         {
             int power = ilog2ceil(n);
             int size = pow(2, power);
+            int offset = size - n;
             dim3 fullBlocksPerGrid((size + blockSize - 1) / blockSize);
-            int *bufA; // = new int[size];
-            int *bufB; // = new int[size];
+            int *bufA;
+            int *bufB;
             cudaMalloc((void **)&bufA, size * sizeof(int));
             checkCUDAErrorWithLine("cudaMalloc bufA failed!");
             cudaMalloc((void **)&bufB, size * sizeof(int));
             checkCUDAErrorWithLine("cudaMalloc bufB failed!");
 
-            // std::fill(bufA, bufA + size, 0);
-            // std::fill(bufB, bufB + size, 0);
             cudaMemset(bufA, 0, size * sizeof(int));
             cudaMemset(bufB, 0, size * sizeof(int));
-            // std::copy(idata, idata + n, bufA + size - n);
-            cudaMemcpy(bufA + size - n, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemcpy(bufA + offset, idata, n * sizeof(int), cudaMemcpyHostToDevice);
             int *tmp;
             timer().startGpuTimer();
             // TODO
             for (int layer = 0; layer < power; layer++)
             {
                 // invoke kernel
-                kernScan<<<fullBlocksPerGrid, blockSize>>>(size, layer, bufB, bufA);
+                kernScanNaive<<<fullBlocksPerGrid, blockSize>>>(size, layer, bufB, bufA);
                 cudaDeviceSynchronize();
                 // swap bufA and bufB
                 tmp = bufA;
@@ -63,14 +60,8 @@ namespace StreamCompaction
             }
             cudaDeviceSynchronize();
             timer().endGpuTimer();
-            int *tmpArr = new int[n];
-            cudaMemcpy(tmpArr, bufA + size - n, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata + 1, bufA + offset, (n - 1) * sizeof(int), cudaMemcpyDeviceToHost);
             odata[0] = 0;
-            for (int i = 1; i < n; i++)
-            {
-                odata[i] = tmpArr[i - 1];
-            }
-            delete[] tmpArr;
             cudaFree(bufA);
             checkCUDAErrorWithLine("cudaFree bufA failed!");
             cudaFree(bufB);

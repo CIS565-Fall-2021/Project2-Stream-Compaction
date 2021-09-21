@@ -2,6 +2,7 @@
     "files.associations": {
         "charconv": "cpp",
         "xstring": "cpp",
-        "xtree": "cpp"
+        "xtree": "cpp",
+        "chrono": "cpp"
     }
 }
