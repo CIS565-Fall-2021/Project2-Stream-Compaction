@@ -54,7 +54,9 @@ namespace StreamCompaction {
             odata[0] = 0; // set ident
 
             cudaFree(dev_A);
+            checkCUDAErrorFn("cudaFree failed on dev_A!");
             cudaFree(dev_B);
+            checkCUDAErrorFn("cudaFree failed on dev_B!");
         }
     }
 }

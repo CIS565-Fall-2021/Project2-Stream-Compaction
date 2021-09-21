@@ -12,7 +12,7 @@
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
-#define blockSize 128
+#define blockSize 512
 
 /**
  * Check for CUDA errors; print and exit if there was a problem.
@@ -112,6 +112,11 @@ namespace StreamCompaction {
             bool getCpuTimerStarted()
             {
                 return cpu_timer_started;
+            }
+
+            bool getGpuTimerStarted()
+            {
+                return gpu_timer_started;
             }
 
             // remove copy and move functions
