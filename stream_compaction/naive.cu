@@ -117,7 +117,6 @@ namespace StreamCompaction {
 
 
 			int d = ilog2(finalMemSize);
-			cudaDeviceSynchronize();
 			for (int i = 1; i <= d; i++)
 			{
 				performScan << < fullBlocksPerGrid, threadsperblockSize >> > (i, dev_buf1, dev_buf2, finalMemSize);

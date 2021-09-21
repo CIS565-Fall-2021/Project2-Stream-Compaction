@@ -138,16 +138,7 @@ namespace StreamCompaction {
 				performUpSweep << < fullBlocksPerGrid, blockSize >> > (i, dev_buf, finalMemSize);
 			}
 
-			//dev_buf[finalMemSize-1] = 0;
-		/*	cudaMemcpy(arr_z, dev_buf, sizeof(int) * finalMemSize, cudaMemcpyDeviceToHost);
-
-			printf("\n Upsweep");
-			for (int i = 0; i < finalMemSize; i++)
-			{
-				printf("%3d ", arr_z[i]);
-			}
-			printf("\n");*/
-
+		
 			for (int i = d - 1; i >= 0; i--)
 			{
 				performDownSweep << < fullBlocksPerGrid, blockSize >> > (i, dev_buf, finalMemSize);
@@ -252,12 +243,6 @@ namespace StreamCompaction {
 
 			cudaMemcpy(odata, dev_bufAnswers, sizeof(int) * finalMemSize, cudaMemcpyDeviceToHost);
 
-			/*	printf("\n Finals Result:");
-				for (int i = 0; i < numElements; i++)
-				{
-					printf("%3d ", odata[i]);
-				}
-				printf("\n");*/
 			timer().endGpuTimer();
 			FreeMemory();
 
