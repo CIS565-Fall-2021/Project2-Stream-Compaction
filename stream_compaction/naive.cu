@@ -4,7 +4,7 @@
 #include "naive.h"
 
 
-#define blockSize 256
+
 
 namespace StreamCompaction {
     namespace Naive {
@@ -43,15 +43,20 @@ namespace StreamCompaction {
 
             int maxDepth = ilog2ceil(n);
             timer().startGpuTimer();
-            // TODO
             for (int d = 1; d <= maxDepth; d++) {
-                kernNaiveScan << <blockNum, blockSize >> > (n, dev_arr2, dev_arr1, pow(2, d - 1));
-                dev_arr1 = dev_arr2;
+                kernNaiveScan << <blockNum, blockSize >> > (n, dev_arr2, dev_arr1, pow(2.0,d-1));
+
+                // ping pong
+                if (d < maxDepth) {
+                    int* temp = dev_arr1;
+                    dev_arr1 = dev_arr2;
+                    dev_arr2 = temp;
+                }
             }
+            timer().endGpuTimer();
 
             cudaMemcpy(odata + 1, dev_arr2, (n - 1) * sizeof(int), cudaMemcpyDeviceToHost);
             odata[0] = 0;
-            timer().endGpuTimer();
 
             cudaFree(dev_arr1);
             cudaFree(dev_arr2);
