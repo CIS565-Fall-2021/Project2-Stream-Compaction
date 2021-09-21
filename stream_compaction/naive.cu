@@ -83,11 +83,12 @@ namespace StreamCompaction {
             // Convert from inclusive to exclusive scan
             kernInsertZero<<<fullBlocksPerGrid, BLOCK_SIZE>>>(N, dev_data1, dev_data2);
 
+            timer().endGpuTimer();
+
             cudaMemcpy(odata, dev_data2, num_bytes, cudaMemcpyDeviceToHost);
             cudaFree(dev_data1);
             cudaFree(dev_data2);
 
-            timer().endGpuTimer();
         }
     }
 }
