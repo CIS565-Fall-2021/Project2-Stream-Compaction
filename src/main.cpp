@@ -6,7 +6,12 @@
  * @copyright University of Pennsylvania
  */
 
-#define fibonacciArr 1
+// 4 - ones 
+// 3 - fibonacci 1 - 8
+// 2 - fibonacci 7 - 0
+// 1 - fibonacci 0 - 7
+// 0 - default, randomized 
+#define arrTestType 0
 
 #include <cstdio>
 #include <stream_compaction/cpu.h>
@@ -15,11 +20,11 @@
 #include <stream_compaction/thrust.h>
 #include "testing_helpers.hpp"
 
-#ifdef fibonacciArr 
+#if arrTestType 
 const int SIZE = 1 << 3; // feel free to change the size of array
 #else
-const int SIZE = 1 << 14; // feel free to change the size of array
-#endif // !fibonacciArr 
+const int SIZE = 1 << 20; // feel free to change the size of array
+#endif 
 
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
@@ -32,16 +37,26 @@ int main(int argc, char* argv[]) {
     printf("\n");
     printf("****************\n");
     printf("** SCAN TESTS **\n");
-    printf("****************\n");
+    printf("****************\n\n");
 
-#ifdef fibonacciArr
+#if arrTestType == 4
+    onesArray(SIZE, a);
+#elif arrTestType == 3
+    for (int i = 0; i < SIZE; i++) {
+        a[i] = i + 1;
+    }
+#elif arrTestType == 2
+    for (int i = 0; i < SIZE; i++) {
+        a[i] = SIZE - i;
+    }
+#elif arrTestType == 1
     for (int i = 0; i < SIZE; i++) {
         a[i] = i;
     }
 #else 
     genArray(SIZE - 1, a, 50);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
-#endif // !fibonacciArr
+#endif
 
     printArray(SIZE, a, true);
 
@@ -52,7 +67,7 @@ int main(int argc, char* argv[]) {
     printDesc("cpu scan, power-of-two");
     StreamCompaction::CPU::scan(SIZE, b, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
-    //printArray(SIZE, b, true);
+    printArray(SIZE, b, true);
 
     zeroArray(SIZE, c);
     printDesc("cpu scan, non-power-of-two");
@@ -97,14 +112,14 @@ int main(int argc, char* argv[]) {
     printDesc("work-efficient scan, power-of-two");
     StreamCompaction::Efficient::scan(SIZE, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    printArray(SIZE, c, true);
+    //printArray(SIZE, c, false);
     printCmpResult(SIZE, b, c);
 
     zeroArray(SIZE, c);
     printDesc("work-efficient scan, non-power-of-two");
     StreamCompaction::Efficient::scan(NPOT, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    printArray(NPOT, c, true);
+    //printArray(NPOT, c, false);
     printCmpResult(NPOT, b, c);
 
     zeroArray(SIZE, c);
@@ -128,8 +143,24 @@ int main(int argc, char* argv[]) {
 
     // Compaction tests
 
-    genArray(SIZE - 1, a, 4);  // Leave a 0 at the end to test that edge case
+#if arrTestType == 4
+    onesArray(SIZE, a);
+#elif arrTestType == 3
+    for (int i = 0; i < SIZE; i++) {
+        a[i] = i + 1;
+    }
+#elif arrTestType == 2
+    for (int i = 0; i < SIZE; i++) {
+        a[i] = SIZE - i;
+    }
+#elif arrTestType == 1
+    for (int i = 0; i < SIZE; i++) {
+        a[i] = i;
+    }
+#else 
+    genArray(SIZE - 1, a, 50);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
+#endif
     printArray(SIZE, a, true);
 
     int count, expectedCount, expectedNPOT;
@@ -141,7 +172,7 @@ int main(int argc, char* argv[]) {
     count = StreamCompaction::CPU::compactWithoutScan(SIZE, b, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
     expectedCount = count;
-    printArray(count, b, true);
+    //printArray(count, b, true);
     printCmpLenResult(count, expectedCount, b, b);
 
     zeroArray(SIZE, c);
@@ -149,28 +180,28 @@ int main(int argc, char* argv[]) {
     count = StreamCompaction::CPU::compactWithoutScan(NPOT, c, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
     expectedNPOT = count;
-    printArray(count, c, true);
+    //printArray(count, c, false);
     printCmpLenResult(count, expectedNPOT, b, c);
 
     zeroArray(SIZE, c);
     printDesc("cpu compact with scan");
     count = StreamCompaction::CPU::compactWithScan(SIZE, c, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
-    printArray(count, c, true);
+    //printArray(count, c, false);
     printCmpLenResult(count, expectedCount, b, c);
 
     zeroArray(SIZE, c);
     printDesc("work-efficient compact, power-of-two");
     count = StreamCompaction::Efficient::compact(SIZE, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(count, c, true);
+    //printArray(count, c, false);
     printCmpLenResult(count, expectedCount, b, c);
 
     zeroArray(SIZE, c);
     printDesc("work-efficient compact, non-power-of-two");
     count = StreamCompaction::Efficient::compact(NPOT, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(count, c, true);
+    //printArray(count, c, false);
     printCmpLenResult(count, expectedNPOT, b, c);
 
     system("pause"); // stop Win32 console from closing on exit

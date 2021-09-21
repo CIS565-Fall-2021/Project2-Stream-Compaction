@@ -22,7 +22,6 @@ namespace StreamCompaction {
             // TODO
             // tally a running sum of input data 
             int sum = 0;
-            odata[0] = 0; 
             for (int i = 0; i < n; i++) {
                 odata[i] = sum; 
                 sum += idata[i];
@@ -65,7 +64,7 @@ namespace StreamCompaction {
 
             // map input array to boolean
             for (int i = 0; i < n; i++) {
-                ibool[i] = (idata[i] != 0); 
+                ibool[i] = idata[i] != 0; 
             }
 
             // scan boolean buffer
@@ -76,6 +75,8 @@ namespace StreamCompaction {
                 iboolScan += ibool[i]; 
             }
 
+            int numElements = odata[n - 1] + ibool[n - 1]; 
+
             // scatter 
             for (int i = 0; i < n; i++) {
                 if (ibool[i]) {
@@ -83,8 +84,6 @@ namespace StreamCompaction {
                 }
             }
 
-            // count number of elements
-            int numElements = odata[n - 1] + ibool[n - 1];
             free(ibool); 
 
             timer().endCpuTimer();

@@ -62,7 +62,9 @@ namespace StreamCompaction {
             
             // copy idata to device memory 
             cudaMemset(dev_dataPadded1, 0, nPadded * sizeof(int));
-            cudaMemcpy(dev_dataPadded1, idata, n * sizeof(int), cudaMemcpyHostToDevice); 
+            checkCUDAError("cudaMemset dev_dataPadded1 failed!");
+            cudaMemcpy(dev_dataPadded1, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+            checkCUDAError("cudaMemcpy dev_dataPadded1 failed!");
 
             // begin scan process
             timer().startGpuTimer();
@@ -76,14 +78,18 @@ namespace StreamCompaction {
             // make scan exclusive
             kernExclusive<<<fullBlocksPerGrid, threadsPerBlock>>>(nPadded, dev_dataPadded1, dev_dataPadded2);
             cudaDeviceSynchronize(); 
+            checkCUDAError("cudaDeviceSynchronize failed!");
             timer().endGpuTimer();
 
             // copy scan back to host
             cudaMemcpy(odata, dev_dataPadded2, n * sizeof(int), cudaMemcpyDeviceToHost); 
-            
+            checkCUDAError("cudaMemcpy dev_dataPadded2 failed!");
+
             // free local buffers
             cudaFree(dev_dataPadded1);
-            cudaFree(dev_dataPadded2); 
+            checkCUDAError("cudaFree dev_dataPadded1 failed!");
+            cudaFree(dev_dataPadded2);
+            checkCUDAError("cudaFree dev_dataPadded2 failed!");
         }
     }
 }
