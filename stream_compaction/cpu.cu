@@ -23,7 +23,13 @@ namespace StreamCompaction {
             for (int ind = 1; ind < n; ind++) {
                 odata[ind] = idata[ind-1] + odata[ind - 1];
             }
+
             timer().endCpuTimer();
+            //for (int ind = 0; ind < n; ind++) {
+            //    printf("%d ", odata[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
         }
 
         /**
@@ -79,6 +85,7 @@ namespace StreamCompaction {
                     count++;
                 }
             }
+
             timer().endCpuTimer();
             return count;
         }

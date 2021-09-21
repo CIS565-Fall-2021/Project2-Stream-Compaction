@@ -23,7 +23,7 @@ namespace StreamCompaction {
             if (index >= array_length - stride) {
                 return;
             }
-            array[index + stride] = array[index] + array[index + stride];
+            array[index + stride] += array[index];
             __syncthreads();
         }
 
@@ -44,7 +44,7 @@ namespace StreamCompaction {
             dim3 fullBlocksPerGrid((array_length + blockSize - 1) / blockSize);
             cudaMalloc((void**)&dev_array, array_length * sizeof(int));
             cudaMemcpy(dev_array + 1, idata, (array_length - 1) * sizeof(int), cudaMemcpyHostToDevice);
-            cudaMemset(dev_array, 0, 1);
+            cudaMemset(dev_array, 0, sizeof(int));
 
             timer().startGpuTimer();
 
@@ -55,7 +55,7 @@ namespace StreamCompaction {
             }
 
             timer().endGpuTimer();
-            cudaMemcpy(odata, dev_array, array_length * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, dev_array, n * sizeof(int), cudaMemcpyDeviceToHost);
 
             //int* array_0 = new int[array_length];
             //int* array_1 = new int[array_length];
@@ -68,8 +68,8 @@ namespace StreamCompaction {
             //}
             //printf("\n");
             //printf("\n");
-            //for (int ind = 0; ind < array_length; ind++) {
-            //    printf("%d ", array_1[ind]);
+            //for (int ind = 0; ind < n; ind++) {
+            //    printf("%d ", odata[ind]);
             //}
             //printf("\n");
             //printf("\n");
