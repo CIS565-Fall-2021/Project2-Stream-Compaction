@@ -22,7 +22,7 @@ namespace StreamCompaction
                 return;
             }
             int shift = pow(2, layer);
-            int otherVal = (index & ((1 << layer) - 1) == 0 ? 1 : 0) *
+            int otherVal = ((index & ((1 << (layer + 1)) - 1)) == 0 ? 1 : 0) *
                            data[index - shift];
             __syncthreads();
             data[index] += otherVal;
@@ -51,6 +51,7 @@ namespace StreamCompaction
                 kernScanEfficientUpSweep<<<fullBlocksPerGrid, blockSize>>>(size, layer, buf);
                 cudaDeviceSynchronize();
             }
+            cudaDeviceSynchronize();
             timer().endGpuTimer();
             cudaMemcpy(odata + 1, buf + offset, (n - 1) * sizeof(int), cudaMemcpyDeviceToHost);
             odata[0] = 0;
