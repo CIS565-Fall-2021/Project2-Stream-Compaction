@@ -19,7 +19,13 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+
+            int sum = 0;
+            for (int i = 0; i < n; ++i) {
+              odata[i] = sum;
+              sum += idata[i];
+            }
+
             timer().endCpuTimer();
         }
 
@@ -30,9 +36,17 @@ namespace StreamCompaction {
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+
+            int j = 0;
+            for (int i = 0; i < n; ++i) {
+              if (idata[i] != 0) {
+                odata[j] = idata[i];
+                ++j;
+              }
+            }
+
             timer().endCpuTimer();
-            return -1;
+            return j;
         }
 
         /**
@@ -42,9 +56,33 @@ namespace StreamCompaction {
          */
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+
+            // map array to 0s and 1s
+            int* bitmap = (int*)std::malloc(n * sizeof(int));
+            for (int i = 0; i < n; ++i) {
+              bitmap[i] = idata[i] != 0;
+            }
+
+            // scan implementation
+            int* scannedBitmap = (int*)std::malloc(n * sizeof(int));
+            int count = 0;
+            for (int i = 0; i < n; ++i) {
+              scannedBitmap[i] = count;
+              count += bitmap[i];
+            }
+
+            for (int i = 0; i < n - 1; ++i) {
+              if (scannedBitmap[i] != scannedBitmap[i + 1]) {
+                odata[scannedBitmap[i]] = idata[i];
+              }
+            }
+
+            std::free(bitmap);
+            std::free(scannedBitmap);
+
             timer().endCpuTimer();
-            return -1;
+
+            return count;
         }
     }
 }
