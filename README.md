@@ -27,7 +27,7 @@ I have collected the data across 8 executions with different array sizes to coll
 
 ## Scan Runtime Analysis
 The performance of the four scan functions is graphed below. 
-![Scan Runtime Analysis](img/ScanAlgorithmAnalysis.PNG)
+![Scan Runtime Analysis](img/ScanAlgorithmAnalysis.png)
 
 - CPU Scan vs Other : From the graph above we can see that for array of smaller sizes the CPU implementation is way better than GPU Scan implementations but as the size of array increases the performance gap starts decreasing. This can be attributed toward the serialized algorithm/ implementation for CPU compared to the parallel implementation on the GPU. At some size of an array the GPU implementation would definitely have crossed over CPU's but, Unfortunately my GPU ran out of memory before i could reach that point. 
 - Naive vs Work Efficient : Throughout the executions of different sizes of Arrays the Naive Implementation performed consistently better than the Work Efficient. This is due to the fact that
