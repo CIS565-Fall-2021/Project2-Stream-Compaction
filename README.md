@@ -7,24 +7,6 @@
 </p>
 
 ---
-## Highlights
-
-XXXXX
-
-
-
-Tested on: 
-
-```
- [SM 8.6 NVIDIA GeForce RTX 3080]
- Max threads per block: 1024
- Shared memory per block: 49152 bytes
- Max threads per SM: 1536
- Max blocks per SM: 16
- Max grid size: 2147483647, 65535, 65535
-```
-
----
 
 ## Features
 
@@ -44,6 +26,12 @@ When the array size is under 20,000, CPU Scan performs better than other algorit
 Output when array size is 65536:
 
 ```
+ [SM 8.6 NVIDIA GeForce RTX 3080]
+ Max threads per block: 1024
+ Shared memory per block: 49152 bytes
+ Max threads per SM: 1536
+ Max blocks per SM: 16
+ Max grid size: 2147483647, 65535, 65535
 ****************
 ** SCAN TESTS **
 ****************
