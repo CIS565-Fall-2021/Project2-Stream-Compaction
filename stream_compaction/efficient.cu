@@ -49,7 +49,7 @@ namespace StreamCompaction {
             // TODO (DONE)
 
             //other variables
-            int blockSize = 128;
+            int blockSize = 256;
             int max = ilog2ceil(n);
             int numObj = (int)powf(2, max);
             dim3 numBlocks((numObj + blockSize - 1) / blockSize);
@@ -84,7 +84,7 @@ namespace StreamCompaction {
          */
         int compact(int n, int *odata, const int *idata) {
             //variables
-            int blockSize = 128;
+            int blockSize = 256;
             int max = ilog2ceil(n);
             int numObj = (int)powf(2, max);
             dim3 numBlocks((numObj + blockSize - 1) / blockSize);
