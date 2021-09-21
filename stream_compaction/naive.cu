@@ -120,7 +120,7 @@ namespace StreamCompaction {
 			for (int i = 1; i <= d; i++)
 			{
 				performScan << < fullBlocksPerGrid, threadsperblockSize >> > (i, dev_buf1, dev_buf2, finalMemSize);
-				cudaDeviceSynchronize();
+				//cudaDeviceSynchronize();
 				std::swap(dev_buf1, dev_buf2);
 			}
 			
