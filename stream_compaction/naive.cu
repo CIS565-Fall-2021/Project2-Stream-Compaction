@@ -18,7 +18,7 @@ namespace StreamCompaction {
 		int* dev_buf1;
 		int* dev_buf2;
 		int* dev_bufLoader;
-#define blockSize 1024
+#define blockSize 128
 
 		__global__ void performScan(int d, int* buf1, int* buf2, int N)
 		{
@@ -27,8 +27,9 @@ namespace StreamCompaction {
 			{
 				return;
 			}
-			//int pow2_d = pow(2, d);
-			int pow2_dminus1 = pow(2, d - 1);
+			
+			//int pow2_dminus1 = std::round(pow(2, d - 1));
+			int pow2_dminus1 = 1 <<(d - 1);
 			if (index >= pow2_dminus1)
 			{
 				buf2[index] = buf1[index - pow2_dminus1] + buf1[index];
@@ -52,7 +53,7 @@ namespace StreamCompaction {
 				buf2[index] = 0;
 				return;
 			}
-			buf2[index] = buf1[index + difference - 1];
+			buf2[index] = buf1[index - 1];
 
 		}
 
@@ -80,12 +81,12 @@ namespace StreamCompaction {
 			{
 				return;
 			}
-			if (index < difference)
+			if (index > (N-1) - difference)
 			{
 				buf[index] = 0;
 				return;
 			}
-			buf[index] = buf_loader[index - difference];
+			buf[index] = buf_loader[index];
 		}
 
 
@@ -108,20 +109,23 @@ namespace StreamCompaction {
 
 
 			dim3 fullBlocksPerGrid((finalMemSize + blockSize - 1) / blockSize);
+			dim3 threadsperblockSize(blockSize);
+
+
 			cudaMemcpy(dev_bufLoader, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
-			RightShiftAddZeros << < fullBlocksPerGrid, blockSize >> > (dev_buf1, dev_bufLoader, finalMemSize, difference);
+			RightShiftAddZeros << < fullBlocksPerGrid, threadsperblockSize >> > (dev_buf1, dev_bufLoader, finalMemSize, difference);
 
 
 			int d = ilog2(finalMemSize);
 			cudaDeviceSynchronize();
 			for (int i = 1; i <= d; i++)
 			{
-				performScan << < fullBlocksPerGrid, blockSize >> > (i, dev_buf1, dev_buf2, finalMemSize);
+				performScan << < fullBlocksPerGrid, threadsperblockSize >> > (i, dev_buf1, dev_buf2, finalMemSize);
 				cudaDeviceSynchronize();
 				std::swap(dev_buf1, dev_buf2);
 			}
-
-			ShiftRight << < fullBlocksPerGrid, blockSize >> > (dev_buf1, dev_buf2, n, difference);
+			
+			ShiftRight << < fullBlocksPerGrid, blockSize >> > (dev_buf1, dev_buf2, finalMemSize, difference);
 			cudaMemcpy(odata, dev_buf2, sizeof(int) * n, cudaMemcpyDeviceToHost);
 
 		

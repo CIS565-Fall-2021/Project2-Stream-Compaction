@@ -24,8 +24,8 @@ namespace StreamCompaction {
 		__global__ void performUpSweep(int d, int* buf, int N)
 		{
 			int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-			int pow2_d = pow(2, d);
-			int pow2_dplus1 = pow2_d * 2;
+			int pow2_d = 1 << d;
+			int pow2_dplus1 = 1 << (d + 1);
 			if (index + pow2_dplus1 - 1 > N - 1)
 			{
 				return;
@@ -47,8 +47,8 @@ namespace StreamCompaction {
 		__global__ void performDownSweep(int d, int* buf, int N)
 		{
 			int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-			int pow2_d = pow(2, d);
-			int pow2_dplus1 = pow2_d * 2;
+			int pow2_d = 1<<d;
+			int pow2_dplus1 = 1<<(d+1);
 			if (index + pow2_dplus1 - 1 > N - 1)
 			{
 				return;
@@ -154,6 +154,7 @@ namespace StreamCompaction {
 			}
 
 			RightShiftDeleteZeroes << < fullBlocksPerGrid, blockSize >> > (dev_bufloader, dev_buf, n, difference);
+			cudaDeviceSynchronize();
 			cudaMemcpy(odata, dev_bufloader, sizeof(int) * n, cudaMemcpyDeviceToHost);
 	
 			timer().endGpuTimer();
