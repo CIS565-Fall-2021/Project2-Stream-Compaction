@@ -7,6 +7,12 @@ CUDA Stream Compaction
   * [LinkedIn](https://www.linkedin.com/in/zhihao-ruan-29b29a13a/), [personal website](https://zhihaoruan.xyz/)
 * Tested on: Ubuntu 20.04 LTS, Ryzen 3700X @ 2.22GHz 48GB, RTX 2060 Super @ 7976MB
 
+## Highlights
+This project implements:
+- a naive parallel scan algorithm compatible with arbitrary sized input arrays;
+- a work-efficient parallel scan algorithm compatible with arbitrary sized input arrays;
+- a stream compaction algorithm built upon the work-efficient parallel scan compatible with arbitrary sized input arrays.
+
 ## Introduction: Stream Compaction
 Stream compaction, essentially, is a technique that aims at removing elements from a list (aka. stream) that are not satisfied according to some criteria. For example, if we have a stream of integers `[1 2 3 2 1 5 23 4 0 0 3 4 2 0 3 8 0]` and we wish to remove "all elements that are 0" (aka. the *criteria*), we would get the remaining compact list `[1 2 3 2 1 5 23 4 3 4 2 3 8]`.
 
