@@ -4,7 +4,7 @@
 #include "efficient.h"
 
 #ifndef THREADS_PER_BLOCK
-#define THREADS_PER_BLOCK 512
+#define THREADS_PER_BLOCK 128
 #endif // !BLOCKSIZE
 
 namespace StreamCompaction {
@@ -19,7 +19,7 @@ namespace StreamCompaction {
         __global__ void kernUpSweep(int n, int *odata, int d) {
 
             int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-            if (index > n) {
+            if (index >= n) {
                 return;
             }
 
@@ -31,7 +31,7 @@ namespace StreamCompaction {
 
         __global__ void kernDownSweep(int n, int *odata, int d) {
             int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-            if (index > n) {
+            if (index >= n) {
                 return;
             }
 
@@ -69,8 +69,8 @@ namespace StreamCompaction {
 				numThreads = ((paddedN - 1) / (1 << (d + 1))) + 1;
 				numBlocks = ceil((float)numThreads / THREADS_PER_BLOCK);
 				kernUpSweep <<<numBlocks, THREADS_PER_BLOCK>>> (numThreads, dev_odata, d);
-				checkCUDAErrorFn("upsweep failed", "efficent.cu", 50);
 				//cudaDeviceSynchronize();
+				checkCUDAErrorFn("upsweep failed", "efficent.cu", 50);
 				//cudaMemcpy(odata, dev_odata, paddedN * sizeof(int), cudaMemcpyDeviceToHost);
             }
 
@@ -78,12 +78,13 @@ namespace StreamCompaction {
             // insert 0 at the end of the in-progress output
             int ZERO = 0;
             cudaMemcpy(dev_odata + paddedN - 1, &ZERO, sizeof(int), cudaMemcpyHostToDevice);
+			checkCUDAErrorFn("writing 0 failed", "efficent.cu", 81);
             for (int d = log2(paddedN - 1); d >= 0; d--) {
 				int numThreads = ((paddedN - 1) / (1 << (d + 1))) + 1;
 				numBlocks = ceil((float)numThreads / THREADS_PER_BLOCK);
 				kernDownSweep <<<numBlocks, THREADS_PER_BLOCK>>> (numThreads, dev_odata, d);
-				checkCUDAErrorFn("downsweep failed", "efficent.cu", 70);
 				//cudaDeviceSynchronize();
+				checkCUDAErrorFn("downsweep failed", "efficent.cu", 70);
 				//cudaMemcpy(odata, dev_odata, paddedN * sizeof(int), cudaMemcpyDeviceToHost);
             }
 
@@ -153,7 +154,7 @@ namespace StreamCompaction {
 				numThreads = ((paddedN - 1) / (1 << (d + 1))) + 1;
 				numBlocks = ceil((float)numThreads / THREADS_PER_BLOCK);
 				kernDownSweep <<<numBlocks, THREADS_PER_BLOCK>>> (numThreads, dev_indices, d);
-				checkCUDAErrorFn("downsweep failed", "efficent.cu", 150);
+				checkCUDAErrorFn("downsweep failed", "efficent.cu", 151);
 				//cudaDeviceSynchronize();
 				//cudaMemcpy(odata, dev_odata, paddedN * sizeof(int), cudaMemcpyDeviceToHost);
             }
@@ -162,6 +163,7 @@ namespace StreamCompaction {
             // assign idata -> odata based on the indices calculated by the scan
             numBlocks = ceil( (float)n / THREADS_PER_BLOCK);
             Common::kernScatter<<<numBlocks, THREADS_PER_BLOCK>>>(n, dev_odata, dev_idata, dev_hasElem, dev_indices);
+			checkCUDAErrorFn("scatter failed", "efficent.cu", 165);
 
             timer().endGpuTimer();
 
