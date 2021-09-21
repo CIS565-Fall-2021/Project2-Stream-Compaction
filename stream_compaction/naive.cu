@@ -6,8 +6,8 @@
 #include <iostream> // testing 
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 128
-#define sectionSize 128
+#define blockSize 8
+#define sectionSize 8
 
 namespace StreamCompaction {
     namespace Naive {
@@ -18,16 +18,72 @@ namespace StreamCompaction {
             return timer;
         }
 
-        __device__ void computeScanToOutputArray(const int* inputArray, int* outputArray,
-            int* XY, int inputSize)
+        // write a kernel to convert from inclusive scan to exclusive scan
+
+        __global__ void convertFromInclusiveToExclusive(const int* inputArray,
+            int* outputArray, int inputSize)
         {
             int i = blockIdx.x * blockDim.x + threadIdx.x;
             // convert inclusive scan into exclusive scan by shifting 
             // all elements to the right by one position and fill the frist 
             // element and out-of-bound elements with 0. 
-            if (i < inputSize && threadIdx.x != 0)
+            if (i < inputSize && i != 0)
             {
-                XY[threadIdx.x] = inputArray[i - 1];
+        
+                outputArray[i] = inputArray[i - 1];
+            }
+            else {
+                outputArray[i] = 0;
+            }
+        }
+
+        void unitTestConversion()
+        {
+            // for testing
+            int numObject = 8;
+            int size = numObject * sizeof(int);
+            int* toyExclusiveArray = new int[numObject];
+            int* toyInclusiveArray = new int[numObject] {3, 4, 11, 11, 15, 16, 22, 25};
+
+            int* dev_toyExclusiveArray;
+            int* dev_toyInclusiveArray;
+
+            cudaMalloc((void**)&dev_toyExclusiveArray, size);
+            checkCUDAError("cudaMalloc dev_toyExclusiveArray failed!");
+
+            cudaMalloc((void**)&dev_toyInclusiveArray, size);
+            checkCUDAError("cudaMalloc dev_toyInclusiveArray failed!");
+
+            cudaMemcpy(dev_toyInclusiveArray, toyInclusiveArray, size,
+                cudaMemcpyHostToDevice);
+ 
+            dim3 dimGridArray((numObject + blockSize - 1) / blockSize, 1, 1);
+            dim3 dimBlockArray(blockSize, 1, 1);
+            convertFromInclusiveToExclusive <<<dimGridArray, dimBlockArray >>> (
+                dev_toyInclusiveArray, dev_toyExclusiveArray, numObject);
+
+            cudaMemcpy(toyExclusiveArray, dev_toyExclusiveArray, size,
+                cudaMemcpyDeviceToHost);
+            checkCUDAError("memCpy back failed!");
+
+            printf("\n");
+
+            for (int i = 0; i < numObject; i++)
+            {
+                std::cout << toyExclusiveArray[i] << '\n';
+            }
+
+            printf("\n");
+
+        }
+
+        __device__ void computeScanToOutputArray(const int* inputArray, int* outputArray,
+            int* XY, int inputSize)
+        {
+            int i = blockIdx.x * blockDim.x + threadIdx.x;
+            if (i < inputSize)
+            {
+                XY[threadIdx.x] = inputArray[i];
             }
             else {
                 XY[threadIdx.x] = 0;
@@ -37,16 +93,16 @@ namespace StreamCompaction {
             {
                 // make sure that input is in place
                 __syncthreads();
-                int index = threadIdx.x;
-                int previousIndex = index - stride;
-                if (previousIndex < 0)
+                int previousValue = 0;
+                int previousIndex = threadIdx.x - stride;
+                if (previousIndex >= 0)
                 {
-                    previousIndex = 0;
+                    previousValue = XY[previousIndex];
                 }
-                int temp = XY[index] + XY[previousIndex];
+                int temp = XY[threadIdx.x] + previousValue;
                 // make sure previous output has been consumed
                 __syncthreads();
-                XY[index] = temp;
+                XY[threadIdx.x] = temp;
             }
 
             // each thread writes its result into the output array
@@ -86,9 +142,9 @@ namespace StreamCompaction {
             int* outputArray, int inputSize)
         {
             int i = blockIdx.x * blockDim.x + threadIdx.x;
-            if (i < inputSize && blockIdx.x > 0)
+            if (i < inputSize)
             {
-                outputArray[i] += inputArray[blockIdx.x - 1];
+                outputArray[i] += inputArray[blockIdx.x];
             }
         }
 
@@ -96,6 +152,7 @@ namespace StreamCompaction {
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
+            // unitTestConversion();
             int size = n * sizeof(int);
             int sumArrayNumEle = (n + blockSize - 1) / blockSize;
             int sumArraySize = sumArrayNumEle * sizeof(int);
@@ -103,11 +160,10 @@ namespace StreamCompaction {
             int* d_InputData;
             int* d_OutputData;
             int* d_SumArray;
-            int* d_SumArrayOutput;
+            // int* d_SumArrayOutput;
 
             // for testing
             int* sumArray = new int[sumArrayNumEle];
-            int* sumArrayOutput = new int[sumArrayNumEle];
 
             cudaMalloc((void**)&d_InputData, size);
             checkCUDAError("cudaMalloc d_InputData failed!");
@@ -118,14 +174,63 @@ namespace StreamCompaction {
             cudaMalloc((void**)&d_SumArray, sumArraySize);
             checkCUDAError("cudaMalloc d_SumArray failed!");
 
-            cudaMalloc((void**)&d_SumArrayOutput, sumArraySize);
-            checkCUDAError("cudaMalloc d_SumArrayOutput failed!");
+           //  cudaMalloc((void**)&d_SumArrayOutput, sumArraySize);
+          //   checkCUDAError("cudaMalloc d_SumArrayOutput failed!");
 
             cudaMemcpy(d_InputData, idata, size, cudaMemcpyHostToDevice);
-            cudaMemcpy(d_OutputData, odata, size, cudaMemcpyHostToDevice);
 
             dim3 dimGridArray((n + blockSize - 1) / blockSize, 1, 1);
             dim3 dimBlockArray(blockSize, 1, 1);
+
+            timer().startGpuTimer();
+            // First step: compute the scan result for individual sections
+            // then, store their block sum to sumArray
+            kernNaiveGPUScanFirstStep << <dimGridArray, dimBlockArray >> > (d_InputData,
+                d_OutputData, d_SumArray, n);
+            checkCUDAError("kernNaiveGPUScanFirstStep failed!");
+            timer().endGpuTimer();
+
+            cudaMemcpy(odata, d_OutputData, size, cudaMemcpyDeviceToHost);
+            checkCUDAError("memCpy back failed!");
+
+            // testing: 
+            cudaMemcpy(sumArray, d_SumArray, sumArraySize, cudaMemcpyDeviceToHost);
+            checkCUDAError("memCpy back failed!");
+
+            printf("\n");
+            for (int i = 0; i < sumArrayNumEle; i++)
+            {
+                std::cout << sumArray[i] << '\n';
+            }
+
+            std::cout << '\n';
+            for (int i = 0; i < n; i++)
+            {
+                std::cout << odata[i] << '\n';
+            }
+
+            // cleanup
+            cudaFree(d_InputData);
+            cudaFree(d_OutputData);
+            cudaFree(d_SumArray);
+           // cudaFree(d_SumArrayOutput);
+            checkCUDAError("cudaFree failed!");
+
+            // testing clean up
+            delete[] sumArray;
+         //   delete[] sumArrayOutput;
+
+#if 0
+
+            int* sumArrayOutput = new int[sumArrayNumEle];
+
+
+            dim3 dimGridSumArray((sumArrayNumEle + blockSize - 1) / blockSize, 1, 1);
+            dim3 dimBlockSumArray(blockSize, 1, 1);
+
+          
+            cudaMemcpy(d_OutputData, odata, size, cudaMemcpyHostToDevice);
+
 
             dim3 dimGridSumArray((sumArrayNumEle + blockSize - 1) / blockSize, 1, 1);
             dim3 dimBlockSumArray(blockSize, 1, 1);
@@ -137,42 +242,43 @@ namespace StreamCompaction {
                 d_OutputData, d_SumArray, n);
             checkCUDAError("kernNaiveGPUScanFirstStep failed!");
 
-            // cudaDeviceSynchronize();
+            cudaDeviceSynchronize();
 
-            kernNaiveGPUScanSecondStep <<<dimGridSumArray, dimBlockSumArray >>> (
+            cudaMemcpy(odata, d_OutputData, size, cudaMemcpyDeviceToHost);
+            checkCUDAError("memCpy back failed!");
+
+
+
+
+            kernNaiveGPUScanSecondStep << <dimGridSumArray, dimBlockSumArray >> > (
                 d_SumArray, d_SumArrayOutput, sumArrayNumEle);
             checkCUDAError("kernNaiveGPUScanSecondStep failed!");
-#if 0
-            
 
-            kernNaiveGPUScanFirstStep << <dimGrid, dimBlock >> > (d_InputData,
-                d_OutputData, d_SumArray, n);
-            checkCUDAError("kernNaiveGPUScanFirstStep failed!");
+            cudaDeviceSynchronize();
 
-            // cudaDeviceSynchronize();
+            kernNaiveGPUScanThirdStep <<<dimGridArray, dimBlockArray >>> (
+                d_SumArrayOutput, d_OutputData, n);
+            checkCUDAError("kernNaiveGPUScanThirdStep failed!");
 
-            kernNaiveGPUScanFirstStep << <dimGrid, dimBlock >> > (d_InputData,
-                d_OutputData, d_SumArray, n);
-            checkCUDAError("kernNaiveGPUScanFirstStep failed!");
+            cudaDeviceSynchronize();
 
-            // cudaDeviceSynchronize();
-#endif
             timer().endGpuTimer();
 
             cudaMemcpy(odata, d_OutputData, size, cudaMemcpyDeviceToHost);
             checkCUDAError("memCpy back failed!");
 
-#if 1
-            // testing: 
-            cudaMemcpy(sumArray, d_SumArray, sumArraySize, cudaMemcpyDeviceToHost);
-            checkCUDAError("memCpy back failed!");
+
+
+           
             cudaMemcpy(sumArrayOutput, d_SumArrayOutput, sumArraySize, 
                 cudaMemcpyDeviceToHost);
             checkCUDAError("memCpy back failed!");
 
+            printf("\n");
+
             for (int i = 0; i < sumArrayNumEle; i++)
             {
-                std::cout << sumArray[i] << '\n';
+                std::cout << sumArrayOutput[i] << '\n';
             }
 
             printf("\n");
@@ -182,23 +288,20 @@ namespace StreamCompaction {
                 std::cout << sumArrayOutput[i] << '\n';
             }
             printf("\n");
-
+            for (int i = 0; i < n; i++)
+            {
+                std::cout << idata[i] << '\n';
+            }
+            std::cout << '\n';
             for (int i = 0; i < n; i++)
             {
                 std::cout << odata[i] << '\n';
             }
+
+
+
+           
 #endif
-
-            // cleanup
-            cudaFree(d_InputData);
-            cudaFree(d_OutputData);
-            cudaFree(d_SumArray);
-            cudaFree(d_SumArrayOutput);
-            checkCUDAError("cudaFree failed!");
-
-            // testing clean up
-            delete[] sumArray;
-            delete[] sumArrayOutput;
         }
     }
 }

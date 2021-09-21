@@ -16,7 +16,7 @@
 #include "testing_helpers.hpp"
 
 // The tests default to an array of size 1 << 8 = 256
-const int SIZE = 1 << 10; // feel free to change the size of array
+const int SIZE = 1 << 4; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -78,9 +78,9 @@ int main(int argc, char* argv[]) {
 
     genArray(SIZE - 1, a, 50);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
-    printArray(SIZE, a, true);
+    printArray(SIZE, a, false);
 
-#if 0
+
     // initialize b using StreamCompaction::CPU::scan you implement
     // We use b for further comparison. Make sure your StreamCompaction::CPU::scan is correct.
     // At first all cases passed because b && c are all zeroes.
@@ -89,10 +89,20 @@ int main(int argc, char* argv[]) {
     printDesc("cpu scan, power-of-two");
     StreamCompaction::CPU::scan(SIZE, b, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
-    printArray(SIZE, b, true);
+    printArray(SIZE, b, false);
 
     printf("\n");
-    
+
+
+#if 0
+
+    zeroArray(SIZE, c);
+    printDesc("cpu scan, non-power-of-two");
+    StreamCompaction::CPU::scan(NPOT, c, a);
+    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
+    printArray(NPOT, b, false);
+    printCmpResult(NPOT, b, c);
+
     printArray(BOOK_SIZE, bookArraya, false);
     zeroArray(BOOK_SIZE, bookArrayb);
     printDesc("cpu scan, power-of-two");
@@ -101,23 +111,15 @@ int main(int argc, char* argv[]) {
     printArray(BOOK_SIZE, bookArrayb, false);
 
     printf("\n");
-
-    zeroArray(SIZE, c);
-    printDesc("cpu scan, non-power-of-two");
-    StreamCompaction::CPU::scan(NPOT, c, a);
-    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
-    printArray(NPOT, b, true);
-    printCmpResult(NPOT, b, c);
-
+#endif
     printf("\n");
 
-#endif
-    
+
     zeroArray(SIZE, c);
     printDesc("naive scan, power-of-two");
     StreamCompaction::Naive::scan(SIZE, c, a);
     printElapsedTime(StreamCompaction::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    printArray(SIZE, c, true);
+    printArray(SIZE, c, false);
     printCmpResult(SIZE, b, c);
     
     /* For bug-finding only: Array of 1s to help find bugs in stream compaction or scan
