@@ -1,14 +1,28 @@
-CUDA Stream Compaction
+Project 2 CUDA Stream Compaction
 ======================
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2**
 
-* (TODO) YOUR NAME HERE
-  * (TODO) [LinkedIn](), [personal website](), [twitter](), etc.
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Raymond Yang
+	* [LinkedIn](https://www.linkedin.com/in/raymond-yang-b85b19168)
+	* Tested on: 
+		* 09/21/2021
+		* Windows 10
+		* NVIDIA GeForce GTX 1080 Ti. 
+	* Submitted on: 09/21/2021
 
-### (TODO: Your README)
+## Introduction 
+The objective of this assignment was to implement Stream Compaction. Stream compaction involves two main processes: 
+* Scan
+<p align="center">
+  <img src="images/a.PNG" />
+</p>
 
-Include analysis, etc. (Remember, this is public, so don't put
-anything here that you don't want to share with the world.)
+## Naive Implementation
+
+## Work Efficient Implementation 
+
+## Limitations of Current Design 
+
+## Data Analysis 
 

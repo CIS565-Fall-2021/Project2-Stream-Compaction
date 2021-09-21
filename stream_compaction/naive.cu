@@ -29,15 +29,14 @@ namespace StreamCompaction {
                 return;
             }
 
-            int offset = 1 << depth;
             // copy old values that won't be computed
-            if (index < offset) {
+            if (index < depth) {
                 dataPadded2[index] = dataPadded1[index]; 
                 return; 
             }
 
             // compute new values
-            dataPadded2[index] = dataPadded1[index - offset] + dataPadded1[index];
+            dataPadded2[index] = dataPadded1[index - depth] + dataPadded1[index];
         }
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
@@ -68,7 +67,7 @@ namespace StreamCompaction {
 
             // begin scan process
             timer().startGpuTimer();
-            for (int i = 0; i < depth; i++) {
+            for (int i = 1; i < nPadded; i <<= 1) {
                 // perform partial scan on depth i
                 kernScanNaive<<<fullBlocksPerGrid, threadsPerBlock>>>(nPadded, i, dev_dataPadded1, dev_dataPadded2);
                 // swap to avoid race conditions

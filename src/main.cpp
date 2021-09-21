@@ -67,7 +67,7 @@ int main(int argc, char* argv[]) {
     printDesc("cpu scan, power-of-two");
     StreamCompaction::CPU::scan(SIZE, b, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
-    printArray(SIZE, b, true);
+    //printArray(SIZE, b, true);
 
     zeroArray(SIZE, c);
     printDesc("cpu scan, non-power-of-two");

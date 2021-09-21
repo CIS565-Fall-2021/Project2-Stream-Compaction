@@ -21,7 +21,6 @@ namespace StreamCompaction {
 
             thrust::host_vector<int> h_thrust_vec(idata, idata + n); 
             thrust::device_vector<int> dev_thrust_vec(h_thrust_vec);
-
             thrust::device_vector<int> dv_out(n); 
 
             timer().startGpuTimer();
@@ -29,8 +28,8 @@ namespace StreamCompaction {
             // example: for device_vectors dv_in and dv_out:
             // thrust::exclusive_scan(dv_in.begin(), dv_in.end(), dv_out.begin());
             thrust::exclusive_scan(dev_thrust_vec.begin(), dev_thrust_vec.end(), dv_out.begin());
-            thrust::copy(dv_out.begin(), dv_out.end(), odata);
             timer().endGpuTimer();
+            thrust::copy(dv_out.begin(), dv_out.end(), odata);
         }
     }
 }
