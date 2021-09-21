@@ -35,7 +35,8 @@ inline __device__ __host__ int ilog2ceil(int x) {
 namespace StreamCompaction {
 namespace Common {
 
-extern const unsigned int block_size;
+extern const unsigned int block_size_efficient;
+extern const unsigned int block_size_naive;
 
 __global__ void kernExtractLastElementPerBlock(int n, int *odata,
                                                const int *idata);

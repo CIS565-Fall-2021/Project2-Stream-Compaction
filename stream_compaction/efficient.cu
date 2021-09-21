@@ -65,11 +65,12 @@ void scan(int n, int *odata, const int *idata) {
   if (n <= 0) return;
   const int n_pad = 1 << (ilog2ceil(n));
 
-  int num_scans = 1;
-  int len       = n_pad;
-  while ((len + Common::block_size - 1) / Common::block_size > 1) {
+  const unsigned int block_size = Common::block_size_efficient;
+  int num_scans                 = 1;
+  int len                       = n_pad;
+  while ((len + block_size - 1) / block_size > 1) {
     ++num_scans;
-    len = (len + Common::block_size - 1) / Common::block_size;
+    len = (len + block_size - 1) / block_size;
   }
 
   int **dev_idata  = (int **)malloc(num_scans * sizeof(int *));
@@ -85,7 +86,7 @@ void scan(int n, int *odata, const int *idata) {
     cudaMalloc((void **)&dev_buffer[i], len * sizeof(int));
     checkCUDAError("cudaMalloc failed for dev_idata, dev_odata, dev_buffer!");
     array_sizes[i] = len;
-    len            = (len + Common::block_size - 1) / Common::block_size;
+    len            = (len + block_size - 1) / block_size;
     grid_sizes[i]  = len;
   }
 
@@ -93,7 +94,7 @@ void scan(int n, int *odata, const int *idata) {
   checkCUDAError("cudaMemcpy failed for idata --> dev_idata[0]!");
 
   /******* KERNEL INVOCATIONS *******/
-  dim3 dimBlock{Common::block_size};
+  dim3 dimBlock{block_size};
   timer().startGpuTimer();
   for (int i = 0; i < num_scans; ++i) {
     dim3 dimGrid{(unsigned int)grid_sizes[i]};
@@ -149,11 +150,12 @@ int compact(int n, int *odata, const int *idata) {
   if (n <= 0) return n;
   const int n_pad = 1 << (ilog2ceil(n));
 
-  int num_scans = 1;
-  int len       = n_pad;
-  while ((len + Common::block_size - 1) / Common::block_size > 1) {
+  const unsigned int block_size = Common::block_size_efficient;
+  int num_scans                 = 1;
+  int len                       = n_pad;
+  while ((len + block_size - 1) / block_size > 1) {
     ++num_scans;
-    len = (len + Common::block_size - 1) / Common::block_size;
+    len = (len + block_size - 1) / block_size;
   }
 
   // input data device allocation
@@ -181,12 +183,12 @@ int compact(int n, int *odata, const int *idata) {
     checkCUDAError(
         "cudaMalloc failed for dev_iIndices, dev_oIndices, dev_buffer!");
     array_sizes[i] = len;
-    len            = (len + Common::block_size - 1) / Common::block_size;
+    len            = (len + block_size - 1) / block_size;
     grid_sizes[i]  = len;
   }
 
   /******* KERNEL INVOCATION *******/
-  dim3 dimGrid{(unsigned int)grid_sizes[0]}, dimBlock{Common::block_size};
+  dim3 dimGrid{(unsigned int)grid_sizes[0]}, dimBlock{block_size};
   timer().startGpuTimer();
 
   Common::kernMapToBoolean<<<dimGrid, dimBlock>>>(n_pad, dev_bools, dev_idata);
