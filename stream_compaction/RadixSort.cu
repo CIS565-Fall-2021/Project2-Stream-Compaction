@@ -1,8 +1,16 @@
 #include "RadixSort.h"
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <thrust/host_vector.h>
+#include <thrust/sort.h>
 namespace StreamCompaction {
 	namespace RadixSort {
+		using StreamCompaction::Common::PerformanceTimer;
+		PerformanceTimer& timer()
+		{
+			static PerformanceTimer timer;
+			return timer;
+		}
 
 #define checkCUDAErrorWithLine(msg) checkCUDAError(msg, __LINE__)  // We can use defines provided in this project
 
@@ -11,8 +19,9 @@ namespace StreamCompaction {
 		int* falseBuf;
 		int* trueBuf;
 		int* bufNotBits;
+		int* bufScatter;
 		int* bufAnswer;
-#define blockSize 128
+#define blockSize 512
 
 
 		void AllocateMemory(int n)
@@ -27,6 +36,8 @@ namespace StreamCompaction {
 			checkCUDAErrorWithLine("cudaMalloc dev_bufS failed!");
 			cudaMalloc((void**)&bufNotBits, n * sizeof(int));
 			checkCUDAErrorWithLine("cudaMalloc dev_bufAnswers failed!");
+			cudaMalloc((void**)&bufScatter, n * sizeof(int));
+			checkCUDAErrorWithLine("cudaMalloc dev_bufAnswers failed!");
 			cudaMalloc((void**)&bufAnswer, n * sizeof(int));
 			checkCUDAErrorWithLine("cudaMalloc dev_bufAnswers failed!");
 			cudaDeviceSynchronize();
@@ -38,6 +49,7 @@ namespace StreamCompaction {
 			cudaFree(falseBuf);
 			cudaFree(trueBuf);
 			cudaFree(bufNotBits);
+			cudaFree(bufScatter);
 			cudaFree(bufAnswer);
 		}
 
@@ -62,17 +74,22 @@ namespace StreamCompaction {
 			{
 				return;
 			}
-			bitNotBits[index] = ~bufBits[index];
+			if (bufBits[index] == 0)
+			{
+				bitNotBits[index] = 1;
+				return;
+			}
+			bitNotBits[index] = 0;
 		}
 
-		__global__ void CopyAnswerToInputBuf(int* BufAnswer, int* InputBuf, int N)
+		__global__ void CopyAnswerToInputBuf(int* BufAnswer, int* ScatterBuffer, int* InputBuf, int N)
 		{
 			int index = threadIdx.x + (blockIdx.x * blockDim.x);
 			if (index > N - 1)
 			{
 				return;
 			}
-			InputBuf[index] = BufAnswer[index];
+			BufAnswer[ScatterBuffer[index]] = InputBuf[index];
 		}
 
 
@@ -103,10 +120,19 @@ namespace StreamCompaction {
 		}
 
 
-		/*void PerformNormalSort(int n, int* odata, const int* idata)
+		void PerformThrustSort(int n, int* odata, const int* idata)
 		{
+			thrust::host_vector<int>hstIn(idata, idata + n);
+			timer().startGpuTimer();
+			// TODO use `thrust::exclusive_scan`
+			// example: for device_vectors dv_in and dv_out:
+			// thrust::exclusive_scan(dv_in.begin(), dv_in.end(), dv_out.begin());
+			thrust::sort(hstIn.begin(), hstIn.end());
 
-		}*/
+			thrust::copy(hstIn.begin(), hstIn.end(), odata);
+
+			timer().endGpuTimer();
+		}
 
 
 
@@ -116,6 +142,7 @@ namespace StreamCompaction {
 			cudaMemcpy(dev_buf, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
 
 			dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
+			timer().startGpuTimer();
 			for (int i = 0; i < 6; i++)
 			{
 				PopulateBits << < fullBlocksPerGrid, blockSize >> > (i, dev_buf, bufBit, n);
@@ -131,17 +158,15 @@ namespace StreamCompaction {
 				int TotalFalses = inputNotBits[n - 1] + odata[n - 1];
 				ComputeTArray << < fullBlocksPerGrid, blockSize >> > (trueBuf, falseBuf, TotalFalses, n);
 				cudaDeviceSynchronize();
-				PerformScatter << < fullBlocksPerGrid, blockSize >> > (bufAnswer, dev_buf, bufBit, falseBuf, trueBuf, n);
+				PerformScatter << < fullBlocksPerGrid, blockSize >> > (bufScatter, dev_buf, bufBit, falseBuf, trueBuf, n);
 				cudaDeviceSynchronize();
-				CopyAnswerToInputBuf << < fullBlocksPerGrid, blockSize >> > (bufAnswer, dev_buf, n);
-
+				CopyAnswerToInputBuf << < fullBlocksPerGrid, blockSize >> > (bufAnswer, bufScatter,  dev_buf, n);
+				cudaDeviceSynchronize();
+				std::swap(dev_buf, bufAnswer);
+				cudaDeviceSynchronize();
 			}
-
+			timer().endGpuTimer();
 			cudaMemcpy(odata, dev_buf, sizeof(int) * n, cudaMemcpyDeviceToHost);
-			for (int i = 0; i < n; i++)
-			{
-				odata[i];
-			}
 		}
 
 	}

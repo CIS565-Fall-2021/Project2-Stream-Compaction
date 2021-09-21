@@ -4,10 +4,10 @@
 
 namespace StreamCompaction {
     namespace RadixSort {
-        //StreamCompaction::Common::PerformanceTimer& timer();
+        StreamCompaction::Common::PerformanceTimer& timer();
 
 
-        //void PerformNormalSort(int n, int* odata, const int* idata);
+        void PerformThrustSort(int n, int* odata, const int* idata);
         void PerformGPUSort(int n, int* odata, const int* idata);
     }
 }
