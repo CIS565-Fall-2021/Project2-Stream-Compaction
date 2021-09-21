@@ -12,6 +12,7 @@
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
+#define blockSize 128
 
 /**
  * Check for CUDA errors; print and exit if there was a problem.
@@ -106,6 +107,16 @@ namespace StreamCompaction {
             float getGpuElapsedTimeForPreviousOperation() //noexcept
             {
                 return prev_elapsed_time_gpu_milliseconds;
+            }
+
+            bool getCpuTimerStarted()
+            {
+                return cpu_timer_started;
+            }
+
+            bool getGpuTimerStarted()
+            {
+                return gpu_timer_started;
             }
 
             // remove copy and move functions
