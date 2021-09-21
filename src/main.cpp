@@ -149,10 +149,10 @@ int main(int argc, char* argv[]) {
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
 
-    printf("\n");
+   /* printf("\n");
     printf("*****************************\n");
     printf("** Radix Sort **\n");
-    printf("*****************************\n");
+    printf("*****************************\n");*/
 
    /* zeroArray(SIZE, c);
     printDesc("Radix Sort");

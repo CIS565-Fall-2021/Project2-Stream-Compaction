@@ -18,7 +18,7 @@ namespace StreamCompaction {
 		int* dev_buf1;
 		int* dev_buf2;
 		int* dev_bufLoader;
-#define blockSize 128
+#define blockSize 512
 
 		__global__ void performScan(int d, int* buf1, int* buf2, int N)
 		{
@@ -66,9 +66,9 @@ namespace StreamCompaction {
 		void AllocateMemory(int n)
 		{
 			cudaMalloc((void**)&dev_buf1, n * sizeof(int));
-			checkCUDAErrorWithLine("cudaMalloc dev_vel2 failed!");
+			checkCUDAErrorWithLine("cudaMalloc dev_buf1 failed!");
 			cudaMalloc((void**)&dev_buf2, n * sizeof(int));
-			checkCUDAErrorWithLine("cudaMalloc dev_vel2 failed!");
+			checkCUDAErrorWithLine("cudaMalloc dev_buf2 failed!");
 			cudaMalloc((void**)&dev_bufLoader, n * sizeof(int));
 			checkCUDAErrorWithLine("cudaMalloc dev_bufLoader failed!");
 			cudaDeviceSynchronize();

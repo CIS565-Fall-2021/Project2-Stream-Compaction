@@ -19,7 +19,7 @@ namespace StreamCompaction {
 		int* dev_bufS;
 		int* dev_bufAnswers;
 
-#define blockSize 128
+#define blockSize 512
 
 		__global__ void performUpSweep(int d, int* buf, int N)
 		{
@@ -250,7 +250,6 @@ namespace StreamCompaction {
 			{
 				return numElements + 1; // Since indexing start from 0
 			}
-			cudaDeviceSynchronize();
 			return numElements; //if last element boolean is 0 its scan result include 1 extra sum counting for 0 index
 		}
 	}

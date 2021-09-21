@@ -68,50 +68,11 @@ namespace StreamCompaction {
             int *ans = new int[n];
 
             int finalIndex = 0;
-#pragma region Powerof2
-
-            //for (int i = 0; i < n; i++)
-            //{
-            //    if (idata[i] == 0)
-            //    {
-            //        arr_b[i] = 0;
-            //        continue;
-            //    }
-            //    arr_b[i] = 1;
-            //}
-            //arr_c[0] = 0;
-            //for (int i = 1; i < n; i++)
-            //{
-            //    arr_c[i] = arr_b[i - 1] + arr_c[i - 1];
-            //}
-
-            //for (int i = 0; i < n; i++)
-            //{
-            //    if (arr_b[i] == 0)
-            //    {
-            //        continue;
-            //    }
-            //    int index = arr_c[i];
-            //    odata[index] = idata[i];
-            //    finalIndex = index;
-            //}
-#pragma endregion
-            // TODO
 #pragma region NonPower2
 
             int *arr_z = new int[n];
 
-            int power2 = 1;
-            int nearesttwo = 2;
-
-            for (int i = 0; i < n; i++)
-            {
-                nearesttwo = nearesttwo << 1;
-                if (nearesttwo >= n)
-                {
-                    break;
-                }
-            }
+            int nearesttwo = 1 << ilog2ceil(n);
 
 
             int difference = nearesttwo - n;
