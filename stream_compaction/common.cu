@@ -14,7 +14,6 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
     exit(EXIT_FAILURE);
 }
 
-
 namespace StreamCompaction {
     namespace Common {
 

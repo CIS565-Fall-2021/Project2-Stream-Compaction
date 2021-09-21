@@ -27,6 +27,7 @@ int main(int argc, char* argv[]) {
     printf("** SCAN TESTS **\n");
     printf("****************\n");
 
+    // TODO: uncomment
     genArray(SIZE - 1, a, 50);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
     printArray(SIZE, a, true);

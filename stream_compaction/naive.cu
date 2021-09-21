@@ -17,6 +17,11 @@ namespace StreamCompaction {
             static PerformanceTimer timer;
             return timer;
         }
+
+        __device__ inline int powi(int a, int b)
+        {
+            return (int)(powf(a, b) + 0.5);
+        }
         __global__ void kernel_naive_parallel_scan(const int* read, int* write, int d, int n)
         {
           int k = blockIdx.x * blockDim.x + threadIdx.x;
@@ -24,7 +29,7 @@ namespace StreamCompaction {
           if (k > n - 1)
             return;
 
-          int step = (int)(powf(2, d - 1) + 0.5);
+          int step = powi(2, d - 1);
           if (k >= step)
             write[k] = read[k - step] + read[k];
         }
