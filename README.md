@@ -11,7 +11,7 @@ CUDA Stream Compaction
 The goal of this project was to analyze the performance of some useful algorithms. These `scan`, which computes a prefix sum on an input array. More can be read about prefix sums [here](https://en.wikipedia.org/wiki/Prefix_sum), as well as more information on the algorithms presented in this project. We then iterated on this scan implementation, creating a serial CPU algorithm, a naive parallel GPU algorithm, and a work-efficient parallel GPU algorithm. We then applied `scan` to compute other useful array operations such as `compaction` which is described in more detail [here](https://stackoverflow.com/questions/34059753/cuda-stream-compaction-algorithm).
 
 ### Features
-* CPU `scan` and `copmaction`
+* CPU `scan` and `compaction`
 * Naive GPU implementation of `scan`
 * Work-efficient GPU implementation of `scan` and `compaction`
 * Wrapper for testing Thrust's `scan` implementation
