@@ -17,17 +17,14 @@ namespace StreamCompaction {
         int* dev_array;
         
         __global__ void kernScanLayer(
-            int array_length, int depth, int* array) {
+            int array_length, int stride, int* array) {
             // compute one layer of scan in parallel.
-            for (int depth_ind = 1; depth_ind <= depth; depth_ind++) {
-                int stride = pow(2, depth_ind - 1);
-                int index = threadIdx.x + (blockIdx.x * blockDim.x);
-                if (index >= array_length - stride) {
-                    return;
-                }
-                array[index + stride] = array[index] + array[index + stride];
-                __syncthreads();
+            int index = threadIdx.x + (blockIdx.x * blockDim.x);
+            if (index >= array_length - stride) {
+                return;
             }
+            array[index + stride] = array[index] + array[index + stride];
+            __syncthreads();
         }
 
         /**
@@ -50,9 +47,13 @@ namespace StreamCompaction {
             cudaMemset(dev_array, 0, 1);
 
             timer().startGpuTimer();
-            
-            kernScanLayer << <fullBlocksPerGrid, blockSize >> > (array_length, depth, dev_array);
+
+            for (int depth_ind = 1; depth_ind <= depth; depth_ind++) {
+                int stride = pow(2, depth_ind - 1);
+                kernScanLayer << <fullBlocksPerGrid, blockSize >> > (array_length, stride, dev_array);
                 
+            }
+
             timer().endGpuTimer();
             cudaMemcpy(odata, dev_array, array_length * sizeof(int), cudaMemcpyDeviceToHost);
 
