@@ -111,7 +111,7 @@ def main():
   plt.legend(['CPU', 'Naive', 'Work Efficient', 'Thrust'])
   plt.xticks(array_size[4:])
   plt.xlabel('Array Size [Log2 Scale]')
-  plt.ylabel('Time [ms]')
+  plt.ylabel('Time [Log10 ms]')
   plt.title('Scan Runtime vs. Array Size (power-of-two)')
 
   # non-power-of-two
@@ -131,7 +131,7 @@ def main():
   plt.legend(['CPU', 'Naive', 'Work Efficient', 'Thrust'])
   plt.xticks(array_size[4:])
   plt.xlabel('Array Size [Log2 Scale]')
-  plt.ylabel('Time [ms]')
+  plt.ylabel('Time [Log10 ms]')
   plt.title('Scan Runtime vs. Array Size (non-power-of-two)')
 
   # compact, power-of-two
@@ -145,7 +145,7 @@ def main():
   plt.legend(['CPU', 'Work Efficient'])
   plt.xticks(array_size[4:])
   plt.xlabel('Array Size [Log2 Scale]')
-  plt.ylabel('Time [ms]')
+  plt.ylabel('Time [Log10 ms]')
   plt.title('Compaction Runtime vs. Array Size (power-of-two)')
 
   # compact, non-power-of-two
@@ -159,7 +159,7 @@ def main():
   plt.legend(['CPU', 'Work Efficient'])
   plt.xticks(array_size[4:])
   plt.xlabel('Array Size [Log2 Scale]')
-  plt.ylabel('Time [ms]')
+  plt.ylabel('Time [Log10 ms]')
   plt.title('Compaction Runtime vs. Array Size (non-power-of-two)')
   plt.show()
 
