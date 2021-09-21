@@ -11,9 +11,10 @@
 #include <stream_compaction/naive.h>
 #include <stream_compaction/efficient.h>
 #include <stream_compaction/thrust.h>
+#include <vector>
 #include "testing_helpers.hpp"
 
-const int SIZE = 1 << 16; // feel free to change the size of array
+const int SIZE = 1 << 22; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -147,6 +148,95 @@ int main(int argc, char* argv[]) {
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
+
+    // --- repeated timing --- 
+    int NUM_TIMINGS = 100;
+    std::vector<float> data;
+    float stdDev;
+    float mean;
+
+    printf("\n                      BlockSize = 128\n");
+    printf("  Data gathered from %i runs with array size %i (2^%i)\n", NUM_TIMINGS, SIZE, ilog2(SIZE));
+    printf("--------------------------------------------------------------\n\n");
+    printf("------------------------------| mean (ms) |--| stdDev (ms) |--\n");
+    printf("------ Scan ------\n");
+
+    // CPU
+    /*
+    for (int i = 0; i < NUM_TIMINGS; i++) {
+        zeroArray(SIZE, c);
+        StreamCompaction::CPU::scan(SIZE, c, a);
+        data.push_back(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation());
+    }
+    tabulate(&data, &mean, &stdDev);
+    printf("CPU Scan                \t%f\t%f\n", mean, stdDev);
+    data.clear();
+    */
+
+    // Naive
+    for (int i = 0; i < NUM_TIMINGS; i++) {
+        zeroArray(SIZE, c);
+        StreamCompaction::Naive::scan(SIZE, c, a);
+        data.push_back(StreamCompaction::Naive::timer().getGpuElapsedTimeForPreviousOperation());
+    }
+    tabulate(&data, &mean, &stdDev);
+    printf("Naive GPU Scan          \t%f\t%f\n", mean, stdDev);
+    data.clear();
+
+    // work efficient
+    for (int i = 0; i < NUM_TIMINGS; i++) {
+        zeroArray(SIZE, c);
+        StreamCompaction::Efficient::scan(SIZE, c, a);
+        data.push_back(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation());
+    }
+    tabulate(&data, &mean, &stdDev);
+    printf("Work Efficient GPU Scan \t%f\t%f\n", mean, stdDev);
+    data.clear();
+	
+    // work efficient
+    for (int i = 0; i < NUM_TIMINGS; i++) {
+        zeroArray(SIZE, c);
+		StreamCompaction::Thrust::scan(SIZE, c, a);
+        data.push_back(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation());
+    }
+    tabulate(&data, &mean, &stdDev);
+    printf("Thrust Library Scan      \t%f\t%f\n", mean, stdDev);
+    data.clear();
+
+    printf("----- Compact -----\n");
+
+    // CPU
+    /*
+    for (int i = 0; i < NUM_TIMINGS; i++) {
+        zeroArray(SIZE, c);
+        StreamCompaction::CPU::compactWithoutScan(SIZE, b, a);
+        data.push_back(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation());
+    }
+    tabulate(&data, &mean, &stdDev);
+    printf("CPU compact without Scan \t%f\t%f\n", mean, stdDev);
+    data.clear();
+    
+    for (int i = 0; i < NUM_TIMINGS; i++) {
+        zeroArray(SIZE, c);
+        StreamCompaction::CPU::compactWithScan(SIZE, b, a);
+        data.push_back(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation());
+    }
+    tabulate(&data, &mean, &stdDev);
+    printf("CPU compact with Scan    \t%f\t%f\n", mean, stdDev);
+    data.clear();
+    */
+    
+    // work efficient
+    for (int i = 0; i < NUM_TIMINGS; i++) {
+        zeroArray(SIZE, c);
+        StreamCompaction::Efficient::compact(SIZE, c, a);
+        data.push_back(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation());
+    }
+    tabulate(&data, &mean, &stdDev);
+    printf("Work Efficient GPU compact\t%f\t%f\n", mean, stdDev);
+    data.clear();
+	
+    std::cout << std::endl;
 
     system("pause"); // stop Win32 console from closing on exit
     delete[] a;

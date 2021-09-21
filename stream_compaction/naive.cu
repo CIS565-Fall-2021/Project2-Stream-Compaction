@@ -4,8 +4,11 @@
 #include "naive.h"
 
 #ifndef BLOCKSIZE
-#define BLOCKSIZE 512
+#define BLOCKSIZE 256
 #endif // !BLOCKSIZE
+
+#include <iostream>
+
 
 
 namespace StreamCompaction {
@@ -57,8 +60,8 @@ namespace StreamCompaction {
             for (int d = 1; d <= log2(paddedN); d++) {
 
                 // --- call scan ---
-
-				kernNaiveScan <<<n/BLOCKSIZE, BLOCKSIZE>>> (paddedN, dev_writeable, dev_readable, d);
+                float numBlocks = ceil((float)n / BLOCKSIZE);
+				kernNaiveScan <<<numBlocks, BLOCKSIZE>>> (paddedN, dev_writeable, dev_readable, d);
 				cudaDeviceSynchronize();
 				checkCUDAErrorFn("naiveScan failed", "naive.cu", 63);
 

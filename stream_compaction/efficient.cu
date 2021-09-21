@@ -4,7 +4,7 @@
 #include "efficient.h"
 
 #ifndef THREADS_PER_BLOCK
-#define THREADS_PER_BLOCK 128
+#define THREADS_PER_BLOCK 256
 #endif // !BLOCKSIZE
 
 namespace StreamCompaction {
@@ -175,6 +175,9 @@ namespace StreamCompaction {
             cudaMemcpy(odata, dev_odata, maxIndex * sizeof(int), cudaMemcpyDeviceToHost);
 
             cudaFree(dev_odata);
+            cudaFree(dev_idata);
+            cudaFree(dev_hasElem);
+            cudaFree(dev_indices);
 
             return maxIndex;
         }
