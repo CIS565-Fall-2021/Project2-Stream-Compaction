@@ -14,7 +14,7 @@
 #include <vector>
 #include "testing_helpers.hpp"
 
-const int SIZE = 1 << 22; // feel free to change the size of array
+const int SIZE = 1 << 16; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -155,14 +155,12 @@ int main(int argc, char* argv[]) {
     float stdDev;
     float mean;
 
-    printf("\n                      BlockSize = 128\n");
     printf("  Data gathered from %i runs with array size %i (2^%i)\n", NUM_TIMINGS, SIZE, ilog2(SIZE));
     printf("--------------------------------------------------------------\n\n");
     printf("------------------------------| mean (ms) |--| stdDev (ms) |--\n");
     printf("------ Scan ------\n");
 
     // CPU
-    /*
     for (int i = 0; i < NUM_TIMINGS; i++) {
         zeroArray(SIZE, c);
         StreamCompaction::CPU::scan(SIZE, c, a);
@@ -171,7 +169,6 @@ int main(int argc, char* argv[]) {
     tabulate(&data, &mean, &stdDev);
     printf("CPU Scan                \t%f\t%f\n", mean, stdDev);
     data.clear();
-    */
 
     // Naive
     for (int i = 0; i < NUM_TIMINGS; i++) {
@@ -206,7 +203,6 @@ int main(int argc, char* argv[]) {
     printf("----- Compact -----\n");
 
     // CPU
-    /*
     for (int i = 0; i < NUM_TIMINGS; i++) {
         zeroArray(SIZE, c);
         StreamCompaction::CPU::compactWithoutScan(SIZE, b, a);
@@ -224,7 +220,6 @@ int main(int argc, char* argv[]) {
     tabulate(&data, &mean, &stdDev);
     printf("CPU compact with Scan    \t%f\t%f\n", mean, stdDev);
     data.clear();
-    */
     
     // work efficient
     for (int i = 0; i < NUM_TIMINGS; i++) {
