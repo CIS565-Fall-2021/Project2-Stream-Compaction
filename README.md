@@ -15,7 +15,7 @@ This project implements:
 
 The GPU steam compaction algorithm is demonstrated to be over 4x faster than the CPU version.
 
-A sample of test output on `block_size` = 1024, `array_size` = 2^20:
+A sample of test output on `block_size` = 1024, `array_size` = 2^27:
 ```
 ****************
 ** SCAN TESTS **
