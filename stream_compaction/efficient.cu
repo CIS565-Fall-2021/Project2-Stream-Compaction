@@ -12,6 +12,102 @@ namespace StreamCompaction {
             return timer;
         }
 
+#if USING_SHARED_MEMORY
+
+        const int blockSize_sharedMemory = 128;
+
+        constexpr int logNumBanks = 5;
+
+        #define CONFLICT_FREE_OFFSET(n) ((n) >> logNumBanks);
+
+        __global__ void kernScanPerBlock(int n, int *dev_data, int *dev_blockSum) {
+
+            extern __shared__ int temp[];
+
+            int index = threadIdx.x;
+            dev_data += blockDim.x * blockIdx.x * 2;
+            n = n > blockDim.x * 2 ? blockDim.x * 2;
+
+            int i = index;
+            int j = index + n / 2;
+            int ti = i + CONFLICT_FREE_OFFSET(i);
+            int tj = j + CONFLICT_FREE_OFFSET(j);
+            temp[ti] = dev_data[i];
+            temp[tj] = dev_data[j];
+
+            int lastElement = 0;
+            if (dev_blockSum && index == blockDim.x - 1) {
+                lastElement = temp[tj];
+            }
+
+            int offset = 1;
+            for (int d = n >> 1; d > 0; d >>= 1) {
+                _syncthreads();
+                if (index < d) {
+                    int i = offset * (2 * index + 1) - 1;
+                    int j = offset * (2 * index + 2) - 1;
+                    i += CONFLICT_FREE_OFFSET(i);
+                    j += CONFLICT_FREE_OFFSET(j);
+                    temp[j] += temp[i];
+                }
+                offset *= 2;
+            }
+
+            if (index == n / 2 - 1) {
+                temp[tj] = 0;
+            }
+
+            for (int d = 1; d < n; d *= 2) {
+                offset >>= 1;
+                _syncthreads();
+                if (index < d) {
+                    int i = offset * (2 * index + 1) - 1;
+                    int j = offset * (2 * index + 2) - 1;
+                    i += CONFLICT_FREE_OFFSET(i);
+                    j += CONFLICT_FREE_OFFSET(j);
+                    int t = temp[i];
+                    temp[i] = temp[j];
+                    temp[j] += t;
+                }
+            }
+
+            _syncthreads();
+            dev_data[i] = temp[ti];
+            dev_data[j] = temp[tj];
+
+            if (dev_blockSum && index == blockDim.x - 1) {
+                dev_blockSum[blockIdx.x] = lastElement + temp[tj];
+            }
+        }
+
+        __global__ void kernAddPerBlock(int *dev_data, int *dev_add) {
+            int blockSum = dev_add[blockIdx.x];
+            dev_data += blockIdx.x * blockDim.x * 2;
+            dev_data[threadIdx.x] += blockSum;
+            dev_data[threadIdx.x + blockDim.x] += blockSum;
+        }
+
+        void scanHelper(int size, int *dev_data) {
+
+            if (size > 2 * blockSize_sharedMemory) {
+
+                int blocks = size / (2 * blockSize_sharedMemory);
+                int *dev_blockSum;
+                cudaMalloc((void**) &dev_blockSum, blocks * sizeof(int));
+
+                kernScanPerBlock<<<blocks, blockSize_sharedMemory>>>(size, dev_data, dev_blockSum);
+                scanHelper(blocks, dev_blockSum);
+                kernAddPerBlock<<<blocks, blockSize_sharedMemory>>>(dev_data, dev_blockSum);
+
+                cudaFree(dev_blockSum);
+
+            } else {
+                kernScanPerBlock<<<1, blockSize_sharedMemory>>>(size, dev_data, nullptr);
+            }
+        }
+
+#else
+
         __global__ void kernScanUpSweepPhase(int threads, int *dev_temp, int offset) {
             int index = blockIdx.x * blockDim.x + threadIdx.x;
             if (index >= threads) {
@@ -32,35 +128,32 @@ namespace StreamCompaction {
             dev_temp[index] += t;
         }
 
-        void scanHelper(int steps, int size, int *dev_temp) {
+        void scanHelper(int size, int *dev_temp) {
 
             int threads = size / 2;
             int offset = 1;
-            for (int i = 0; i < steps; ++i) {
+            for (; threads > 0; threads /= 2, offset *= 2) {
                 dim3 blocks((threads + blockSize - 1) / blockSize);
                 kernScanUpSweepPhase<<<blocks, blockSize>>>(threads, dev_temp, offset);
-                threads /= 2;
-                offset *= 2;
             }
 
             cudaMemset(dev_temp + size - 1, 0, sizeof(int));
             threads = 1;
             offset = size / 2;
-            for (int i = 0; i < steps; ++i) {
+            for (; offset > 0; offset /= 2, threads *= 2) {
                 dim3 blocks((threads + blockSize - 1) / blockSize);
                 kernScanDownSweepPhase<<<blocks, blockSize>>>(threads, dev_temp, offset);
-                threads *= 2;
-                offset /= 2;
             }
         }
+
+#endif
 
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
 
-            int steps = ilog2ceil(n);
-            int size = 1 << steps;
+            int size = 1 << ilog2ceil(n);
 
             int *dev_temp;
             cudaMalloc((void**) &dev_temp, size * sizeof(int));
@@ -68,7 +161,7 @@ namespace StreamCompaction {
             cudaMemset(dev_temp + n, 0, (size - n) * sizeof(int));
 
             timer().startGpuTimer();
-            scanHelper(steps, size, dev_temp);
+            scanHelper(size, dev_temp);
             timer().endGpuTimer();
 
             cudaMemcpy(odata, dev_temp, n * sizeof(int), cudaMemcpyDeviceToHost);
@@ -88,8 +181,7 @@ namespace StreamCompaction {
         int compact(int n, int *odata, const int *idata) {
 
             dim3 blocks((n + blockSize - 1) / blockSize);
-            int steps = ilog2ceil(n);
-            int size = 1 << steps;
+            int size = 1 << ilog2ceil(n);
 
             int *dev_idata, *dev_odata, *dev_bools, *dev_indices;
             cudaMalloc((void**) &dev_idata, n * sizeof(int));
@@ -103,7 +195,7 @@ namespace StreamCompaction {
             timer().startGpuTimer();
             StreamCompaction::Common::kernMapToBoolean<<<blocks, blockSize>>>(n, dev_bools, dev_idata);
             cudaMemcpy(dev_indices, dev_bools, n * sizeof(int), cudaMemcpyDeviceToDevice);
-            scanHelper(steps, size, dev_indices);
+            scanHelper(size, dev_indices);
             StreamCompaction::Common::kernScatter<<<blocks, blockSize>>>(n, dev_odata, dev_idata, dev_bools, dev_indices);
             timer().endGpuTimer();
 
@@ -120,26 +212,60 @@ namespace StreamCompaction {
             return lastBool + lastIdx;
         }
 
+        __global__ void kernBitKNegative(int n, int *dev_idata, int *dev_bools, int bitK) {
+            int index = blockIdx.x * blockDim.x + threadIdx.x;
+            if (index >= n) {
+                return;
+            }
+            dev_bools[index] = (idata[index] & (1 << bitK)) == 0;
+        }
+
+        __global void kernSplit(int n, int *dev_idata, int *dev_odata, int *dev_scan, int bitK, int totalFalses) {
+            int index = blockIdx.x * blockDim.x + threadIdx.x;
+            if (index >= n) {
+                return;
+            }
+            int data = dev_idata[index];
+            int scanIdx = dev_scan[index];
+            if ((data & (1 << bitK)) == 0) {
+                dev_odata[scanIdx] = data;
+            } else {
+                dev_odata[scanIdx + totalFalses] = data;
+            }
+        }
+
         void radixSort(int n, int *odata, int *idata) {
 
-            int *dev_idata, *dev_odata, *dev_bools, *dev_scan;
-            cudaMalloc((void**) &dev_idata, n * sizeof(int));
-            cudaMalloc((void**) &dev_odata, n * sizeof(int));
-            cudaMalloc((void**) &dev_bools, n * sizeof(int));
-            cudaMalloc((void**) &dev_scan, n * sizeof(int));
-
-            cudaMemcpy(dev_idata, idata, n * sizeof(int), cudaMemcpyHostToDevice);
-
+            dim3 blocks((n + blockSize - 1) / blockSize);
+            int size = 1 << ilog2ceil(n);
             int maxNum = 0;
             for (int i = 0; i < n; ++i) {
                 maxNum = std::max(maxNum, idata[n]);
             }
+            int maxBit = ilog2ceil(maxNum);
 
-            cudaMemcpy(odata, dev_odata, n * sizeof(int), cudaMemcpyDeviceToHost);
+            int *dev_data1, *dev_data2, *dev_scan;
+            cudaMalloc((void**) &dev_data1, n * sizeof(int));
+            cudaMalloc((void**) &dev_data2, n * sizeof(int));
+            cudaMalloc((void**) &dev_scan, size * sizeof(int));
 
-            cudaFree(dev_idata);
-            cudaFree(dev_odata);
-            cudaFree(dev_bools);
+            cudaMemcpy(dev_data1, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+
+            for (int i = 0; i <= maxBit; ++i) {
+                int lastBool, lastScan;
+                kernBitKNegative<<<blocks, blockSize>>>(n, dev_data1, dev_scan, i);
+                cudaMemcpy(&lastBool, dev_scan + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+                cudaMemset(dev_scan + n, 0, (size - n) * sizeof(int));
+                scanHelper(size, dev_scan);
+                cudaMemcpy(&totalFalses, dev_scan + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+                kernSplit<<<blocks, blockSize>>>(n, dev_data1, dev_data2, dev_scan, i, lastBool + lastScan);
+                std::swap(dev_data1, dev_data2);
+            }
+
+            cudaMemcpy(odata, dev_data1, n * sizeof(int), cudaMemcpyDeviceToHost);
+
+            cudaFree(dev_data1);
+            cudaFree(dev_data2);
             cudaFree(dev_scan);
         }
     }

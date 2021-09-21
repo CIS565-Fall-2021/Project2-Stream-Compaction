@@ -17,10 +17,11 @@ namespace StreamCompaction {
             if (index >= n) {
                 return;
             }
+            int data = dev_in[index];
             if (index >= offset) {
-                dev_out[index] = dev_in[index] + dev_in[index - offset];
+                dev_out[index] = data + dev_in[index - offset];
             } else {
-                dev_out[index] = dev_in[index];
+                dev_out[index] = data;
             }
         }
 

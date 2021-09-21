@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
     printDesc("cpu scan, non-power-of-two");
     StreamCompaction::CPU::scan(NPOT, c, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
-    printArray(NPOT, b, true);
+    //printArray(NPOT, b, true);
     printCmpResult(NPOT, b, c);
 
     zeroArray(SIZE, c);
@@ -146,6 +146,39 @@ int main(int argc, char* argv[]) {
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
+
+    printf("\n");
+    printf("*****************************\n");
+    printf("** RADIX SORT TESTS **\n");
+    printf("*****************************\n");
+
+    genArray(SIZE - 1, a, 100);  // Leave a 0 at the end to test that edge case
+    a[SIZE - 1] = 0;
+    printArray(SIZE, a, true);
+
+    zeroArray(SIZE, b);
+    printDesc("radix sort, power-of-two");
+    StreamCompaction::Efficient::radixSort(SIZE, b, a);
+    for (int i = 0; i < SIZE - 1; ++i) {
+        if (b[i] > b[i + 1]) {
+            printf("FAILED\n");
+            break;
+        } else if (i == SIZE - 2) {
+            printf("passed\n")
+        }
+    }
+
+    zeroArray(SIZE, b);
+    printDesc("radix sort, non-power-of-two");
+    StreamCompaction::Efficient::radixSort(NPOT, b, a);
+    for (int i = 0; i < NPOT - 1; ++i) {
+        if (b[i] > b[i + 1]) {
+            printf("FAILED\n");
+            break;
+        } else if (i == NPOT - 2) {
+            printf("passed\n")
+        }
+    }
 
     system("pause"); // stop Win32 console from closing on exit
     delete[] a;
