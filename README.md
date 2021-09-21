@@ -111,3 +111,35 @@ After solving the problem of parallel scan, we can now get to the real algorithm
 
 ![](img/stream_compaction.png)
 
+## Performance Analysis
+**All the tests are conducted with random input array with `srand(0)` on local desktop.**
+
+I roughly found the optimal block size for naive scan algorithm to be 256 and work-efficient scan algorithm to be 128. With these numbers tuned, I ran the program against multiple sizes of input arrays to evaluate the performance.
+
+After careful evaluation, the current performance bottlenecks should be lying in:
+1. Warp divergence and `__syncthreads()`. For both naive scan and work-efficient scan, the threads are utilized in an interleaved pattern, which leads to huge amount of warp divergence.
+2. Global memory accesses are not coalesced. This is due to the same reason with (1), where we access global memory in an interleaved fashion.
+
+Further improvements to the kernel functions includes re-index active threads to minimize warp divergence, as well as breaking work-efficient scan kernel into two small kernels (up-sweep and down-sweep) to eliminate the effect of `__syncthreads()` and warp divergence.
+
+### Parallel Scan, Array Size Power-of-Two
+In this diagram we can see that for large input data, CPU scan takes the most amount of time to run. For naive scan algorithm and work-efficient algorithm, both of them work similarly. When the data size is small, all four methods run roughly the same amount of time. Thrust outperforms all other three methods on large input data.
+
+![](profiling/img/Figure_1.png)
+
+### Parallel Scan, Array Size Non-Power-of-Two
+In this diagram we can see that the four methods have roughly the same behaviors as in [array size of power of two.](#parallel-scan-array-size-power-of-two)
+
+![](profiling/img/Figure_2.png)
+
+### Stream Compaction, Array Size Power-of-Two
+We can see that when data size is small, CPU compaction has roughly the same performance as work-efficient compaction. However, as the data size increases, GPU compaction outperforms CPU compaction.
+
+![](profiling/img/Figure_3.png)
+
+### Stream Compaction, Array Size Non-Power-of-Two
+This diagram shows similar behaviors as in [array size of power of two.](#stream-compaction-array-size-power-of-two)
+
+![](profiling/img/Figure_4.png)
+
+
