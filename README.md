@@ -14,7 +14,7 @@ Project 2 CUDA Stream Compaction
 ## Introduction 
 The objective of this assignment was to implement Stream Compaction. Stream compaction involves three main processes: 
 * Boolean Mapping: Given an input array of data `idata`, this data must first be mapped to a boolean array `dev_bool`. This boolean array evaluates whether that input data at each index is desireable. If so, the data will be kept during Scatter. If not, the data will be removed during Scatter. 
-* Scan: Given an input boolean array `dev_bool`, scan will output a commulative sum of array values. This output array `dev_dataPadded` should match the format of an exclusive scan. This output array contains the indices of where desirable values in the original input data will be stored during Scatter.
+* Scan: Given an input boolean array `dev_bool`, scan will output a prefix sum of array values. This output array `dev_dataPadded` should match the format of an exclusive scan. This output array contains the indices of where desirable values in the original input data will be stored during Scatter.
 
 <p align="center">
   <img src="img/ss0.PNG" alt="drawing" width="500" />
@@ -41,7 +41,6 @@ The objective of this assignment was to implement Stream Compaction. Stream comp
 <p align="center">
   <img src="img/ss3.PNG" alt="drawing" width="500" />
 </p>
-Current implementation does not take advantage of work-efficient's ability to be run in parallel across blocks in individual shared memories. 
 
 ## Data Analysis 
 Benchmark was run on 3 implementations (CPU, Naive, Work-Eff) and the Thrust API. Benchmarks were recorded after 10 successive runs. Benchmarks were recorded in milliseconds. Benchmarks were ran on two data sets. The first data set (PoT = Power of Two) is an array of size 2<sup>20</sup> populated by random values. The second data set (NPoT = Not Power of Two) is an array of size 2<sup>20</sup> - 3 populated by random values. 
