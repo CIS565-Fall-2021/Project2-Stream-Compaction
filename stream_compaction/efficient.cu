@@ -92,7 +92,7 @@ namespace StreamCompaction {
         * Performs prefix-sum (aka scan) on odata, storing the result into odata. 
         * Both ptrs are device ptrs. This is a helper for compact()
         */
-        void scanHelper(int n, int* odata)
+        int scanHelper(int n, int* odata)
         {
             int roundedN = pow(2, ilog2ceil(n));
             // allocate memory
@@ -109,6 +109,9 @@ namespace StreamCompaction {
 
                 kernParallelReduction << <fullBlocksPerGrid, numThreads >> > (dev_data_scan, d);
             }
+            // save size of compact array from last elem of reduction
+            int compactSize;
+            cudaMemcpy(&compactSize, dev_data_scan + roundedN - 1, sizeof(int), cudaMemcpyDeviceToHost);
 
             // perform down-sweep
             bool firstLoop = false;
@@ -123,6 +126,7 @@ namespace StreamCompaction {
 
             cudaMemcpy(odata, dev_data_scan, n * sizeof(int), cudaMemcpyDeviceToHost);
             cudaFree(dev_data_scan);
+            return compactSize;
         }
 
         /**
@@ -147,14 +151,7 @@ namespace StreamCompaction {
 
             cudaMemcpy(odata, dev_bools, n * sizeof(int), cudaMemcpyDeviceToHost);
 
-            scanHelper(n, odata);
-
-            
-                std::cout << "Scan res: [" << odata[0] << ", " << odata[1] << ", " << odata[2] << ", " << odata[3] << ", "
-                    << odata[4] << ", " << odata[5] << ", " << odata[6] << ", " << odata[7] << ", "
-                    << odata[8] << ", " << odata[9] << ", " << odata[10] << ", " << odata[11] << ", " << odata[12] << ", " << odata[13] << "]" << std::endl;
-
-            int outSize = odata[n - 1];
+            int outSize = scanHelper(n, odata);
             cudaMalloc((void**)&dev_compact_out, outSize * sizeof(int));
 
             // perform scatter to fill final array
