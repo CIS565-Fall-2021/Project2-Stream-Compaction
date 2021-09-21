@@ -14,10 +14,8 @@ namespace StreamCompaction {
             static PerformanceTimer timer;
             return timer;
         }
-        int* dev_array_in;
         int* dev_array_dep1;
         int* dev_array_dep2;
-        int* dev_array_out;
         
         __global__ void kernScanLayer(
             int array_length, int stride, int* array_in, int* array_out) {
@@ -34,6 +32,7 @@ namespace StreamCompaction {
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
+            // deal with non-2-power input
             int depth = ilog2ceil(n);
             int array_length = pow(2, depth);
             if (ilog2(n) != depth) {
@@ -43,19 +42,15 @@ namespace StreamCompaction {
                 idata = new_idata;
             }
 
-            int* host_dev_array_dep1 = new int[array_length];
-            memset(host_dev_array_dep1, 0, 1 * sizeof(int));
-            memcpy(host_dev_array_dep1 + 1, idata, (array_length - 1) * sizeof(int));
-
-
             dim3 fullBlocksPerGrid((array_length + blockSize - 1) / blockSize);
             cudaMalloc((void**)&dev_array_dep1, array_length * sizeof(int));
             cudaMalloc((void**)&dev_array_dep2, array_length * sizeof(int));
-            cudaMemcpy(dev_array_dep1, host_dev_array_dep1, array_length * sizeof(int), cudaMemcpyHostToDevice);
-            cudaMemcpy(dev_array_dep2, host_dev_array_dep1, array_length * sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_array_dep2 + 1, idata, (array_length - 1) * sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_array_dep1 + 1, idata, (array_length - 1) * sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemset(dev_array_dep1, 0, 1);
+            cudaMemset(dev_array_dep2, 0, 1);
 
             timer().startGpuTimer();
-            
             for (int depth_ind = 1; depth_ind <= depth; depth_ind++) {
                 int stride = pow(2, depth_ind - 1);
                 if (depth_ind != 1) {
