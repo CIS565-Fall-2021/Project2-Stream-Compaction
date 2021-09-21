@@ -38,7 +38,7 @@ The performance of the four scan functions is graphed below.
 I have implemented "Parallel" radix sort which effectively work on compare bits of a decimal number by converting them to binary. This process starts by comparing least significant bit and continues until we have reached the most significant bit. 
 To check the authenticity of my implementation, I have compared results from mine to CUDA's Thrust::sort results. I tested it from 2^6^ size arrays upto 2^26^ where it passed on all the scenario's thereby validating my implementation. A screenshot of my result is shown below. An array of size 2^18^ is used.
 
-![Scan Runtime Analysis](Radix Sort.PNG)
+![Radix Sort](img/Radix Sort.PNG)
 
 ## Blooper
 Apparently on the GPU side function: pow(2,12)  was returning a value of 4027 which is super absurd. I fixed it by using bitwise opertaion 1<<12 which gave me the expected result 4028.
