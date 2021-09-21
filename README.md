@@ -15,7 +15,15 @@ Project 2 CUDA Stream Compaction
 The objective of this assignment was to implement Stream Compaction. Stream compaction involves two main processes: 
 * Scan
 <p align="center">
-  <img src="images/a.PNG" />
+  <img src="img/ss0.PNG" />
+</p>
+
+<p align="center">
+  ![ss0](img/ss0.PNG)
+</p>
+
+<p align="center">
+  <img src=img/ss0.PNG />
 </p>
 
 ## Naive Implementation
