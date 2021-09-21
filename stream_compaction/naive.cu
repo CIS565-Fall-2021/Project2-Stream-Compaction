@@ -2,7 +2,6 @@
 #include <cuda_runtime.h>
 #include "common.h"
 #include "naive.h"
-#include <vector>
 
 namespace StreamCompaction {
     namespace Naive {
@@ -53,12 +52,6 @@ namespace StreamCompaction {
 
             cudaMemcpy(&odata[1], dev_buf0, sizeof(int) * (n - 1), cudaMemcpyDeviceToHost);
             checkCUDAError("cudaMemcpy from device failed!");
-
-            std::vector<int> odataView(n);
-            memcpy(odataView.data(), odata, sizeof(int) * n);
-
-            std::vector<int> idataView(n);
-            memcpy(idataView.data(), idata, sizeof(int) * n);
 
             cudaFree(dev_buf0);
             checkCUDAError("cudaFree dev_buf0 failed!");

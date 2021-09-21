@@ -2,6 +2,7 @@
 #include <cuda_runtime.h>
 #include "common.h"
 #include "efficient.h"
+#include <vector>
 
 namespace StreamCompaction {
     namespace Efficient {
@@ -11,11 +12,20 @@ namespace StreamCompaction {
             static PerformanceTimer timer;
             return timer;
         }
-
-        __global__ void kernWorkEfficientReduceStep(int n, int stride, int* data) {
-          int index = threadIdx.x + (blockIdx.x * blockDim.x);
+        
+        __global__ void kernWorkEfficientUpSweepStep(int n, int stride, int* data) {
+          int index = 2 * stride * (threadIdx.x + (blockIdx.x * blockDim.x)) - 1;
           if (index >= stride && index < n) {
             data[index] += data[index - stride];
+          }
+        }
+        
+        __global__ void kernWorkEfficientDownSweepStep(int n, int stride, int* data) {
+          int index = 2 * stride * (threadIdx.x + (blockIdx.x * blockDim.x)) - 1;
+          if (index >= stride && index < n) {
+            int oldValue = data[index];
+            data[index] += data[index - stride];
+            data[index - stride] = oldValue;
           }
         }
 
@@ -24,29 +34,35 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startGpuTimer();
-            /*
-            dim3 fullBlocksPerGrid = ((n + blockSize - 1) / blockSize);
+            
+            int nPow2 = 1 << ilog2ceil(n);
+            dim3 fullBlocksPerGrid = ((nPow2 + blockSize - 1) / blockSize);
 
-            int* dev_buf0;
-            cudaMalloc((void**)&dev_buf0, n * sizeof(int));
-            checkCUDAError("cudaMalloc dev_buf0 failed!");
+            int* dev_buf;
+            cudaMalloc((void**)&dev_buf, sizeof(int) * nPow2);
+            checkCUDAError("cudaMalloc dev_buf failed!");
 
-            int* dev_buf1;
-            cudaMalloc((void**)&dev_buf1, n * sizeof(int));
-            checkCUDAError("cudaMalloc dev_buf0 failed!");
-
-            cudaMemcpy(dev_buf0, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_buf, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
             checkCUDAError("cudaMemcpy to device failed!");
 
-            for (int offset = 1; offset < n; offset <<= 1) {
-              kernNaiveScanStep << <fullBlocksPerGrid, blockSize >> > (n, offset, dev_buf1, dev_buf0);
-              checkCUDAError("kernNaiveScanStep failed!");
-
-              std::swap(dev_buf0, dev_buf1);
+            // up-sweep phase
+            for (int stride = 1; stride < nPow2; stride <<= 1) {
+              kernWorkEfficientUpSweepStep << <fullBlocksPerGrid, blockSize >> > (nPow2, stride, dev_buf);
+              checkCUDAError("kernWorkEfficientUpSweepStep failed!");
             }
 
-            cudaMemcpy(&odata[1], dev_buf0, sizeof(int) * (n - 1), cudaMemcpyDeviceToHost);
+            // down-sweep phase
+            cudaMemset(&dev_buf[nPow2 - 1], 0, sizeof(int));
+            for (int stride = nPow2 >> 1; stride > 0; stride >>= 1) {
+              kernWorkEfficientDownSweepStep << <fullBlocksPerGrid, blockSize >> > (nPow2, stride, dev_buf);
+              checkCUDAError("kernWorkEfficientDownSweepStep failed!");
+            }
+
+            cudaMemcpy(odata, dev_buf, sizeof(int) * n, cudaMemcpyDeviceToHost);
             checkCUDAError("cudaMemcpy from device failed!");
+
+            cudaFree(dev_buf);
+            checkCUDAError("cudaFree dev_buf failed!");
 
             std::vector<int> odataView(n);
             memcpy(odataView.data(), odata, sizeof(int) * n);
@@ -54,12 +70,6 @@ namespace StreamCompaction {
             std::vector<int> idataView(n);
             memcpy(idataView.data(), idata, sizeof(int) * n);
 
-            cudaFree(dev_buf0);
-            checkCUDAError("cudaFree dev_buf0 failed!");
-
-            cudaFree(dev_buf1);
-            checkCUDAError("cudaFree dev_buf1 failed!");
-            */
             timer().endGpuTimer();
         }
 
