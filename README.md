@@ -37,6 +37,76 @@ For all GPU Scan algorithms, I choose to implement inclusive Scan first, and the
 
 ## Performance Analysis
 
+![scan](images/scan.png)
+
+When the array size is under 20,000, CPU Scan performs better than other algorithms. As the array size increases, GPU Naive Scan performs better than the rest of the algorithms. The Thrust implementation has more stable performance than the rest of the algorithms. 
+
+Output when array size is 65536:
+
+```
+****************
+** SCAN TESTS **
+****************
+    [  27  40   6  30  21  41  41  26  20   5   6  29  41 ...  32   0 ]
+==== cpu scan, power-of-two ====
+   elapsed time: 0.0972ms    (std::chrono Measured)
+    [   0  27  67  73 103 124 165 206 232 252 257 263 292 ... 1599954 1599986 ]
+
+==== cpu scan, non-power-of-two ====
+   elapsed time: 0.085ms    (std::chrono Measured)
+    [   0  27  67  73 103 124 165 206 232 252 257 263 292 ... 1599856 1599858 ]
+    passed
+
+==== work-efficient scan, power-of-two ====
+   elapsed time: 0.178144ms    (CUDA Measured)
+    passed
+==== work-efficient scan, non-power-of-two ====
+   elapsed time: 0.096544ms    (CUDA Measured)
+    passed
+==== naive scan, power-of-two ====
+   elapsed time: 0.091232ms    (CUDA Measured)
+    passed
+==== naive scan, non-power-of-two ====
+   elapsed time: 0.182464ms    (CUDA Measured)
+    passed
+==== thrust scan, power-of-two ====
+   elapsed time: 0.10432ms    (CUDA Measured)
+    [   0  27  67  73 103 124 165 206 232 252 257 263 292 ... 1599954 1599986 ]
+    passed
+==== thrust scan, non-power-of-two ====
+   elapsed time: 0.075776ms    (CUDA Measured)
+    [   0  27  67  73 103 124 165 206 232 252 257 263 292 ... 1599856 1599858 ]
+    passed
+
+*****************************
+** STREAM COMPACTION TESTS **
+*****************************
+    [   0   1   0   1   3   3   2   1   0   1   2   1   2 ...   3   0 ]
+==== cpu compact without scan, power-of-two ====
+   elapsed time: 0.1293ms    (std::chrono Measured)
+    [   1   1   3   3   2   1   1   2   1   2   2   1   3 ...   3   2 ]
+    passed
+==== cpu compact without scan, non-power-of-two ====
+   elapsed time: 0.1319ms    (std::chrono Measured)
+    [   1   1   3   3   2   1   1   2   1   2   2   1   3 ...   3   3 ]
+    passed
+==== cpu compact with scan ====
+   elapsed time: 0.6768ms    (std::chrono Measured)
+    [   1   1   3   3   2   1   1   2   1   2   2   1   3 ...   3   2 ]
+    passed
+==== work-efficient compact, power-of-two ====
+   elapsed time: 0.096544ms    (CUDA Measured)
+    [   1   1   3   3   2   1   1   2   1   2   2   1   3 ...   3   2 ]
+    passed
+==== work-efficient compact, non-power-of-two ====
+   elapsed time: 0.096544ms    (CUDA Measured)
+    [   1   1   3   3   2   1   1   2   1   2   2   1   3 ...   3   3 ]
+    passed
+Press any key to continue . . .
+```
+
+
+
 ### Block Size
 
 RTX 3080 Stats: 
@@ -56,7 +126,7 @@ I want to choose a block configuration that would result in the largest number o
 
 - You need 1536/512 = 3 blocks to fully occupy the SM. Fortunately, SM allows up to 16 blocks. Thus, the actual number of threads that can run on this SM is 3  * 512 = 1536. We have occupied 1536/1536 = 100% of the SM. 
 
-## Naive Scan Analysis
+## Naive Scan 
 
 - Implemented ```NaiveGPUScan``` using shared memory. 
 - Each thread is assigned to evolve the contents of one element in the input array. 
@@ -82,15 +152,6 @@ Understand thread to data mapping:
   - For example, when stride = 2, we want thread 0 maps to data index [3], thread 1 maps to data index[7], etc. 
     - (threadIdx.x + 1) * stride * 2 - 1 = (0 + 1) * 2 * 2 - 1 = 3
     - (threadIdx.x + 1) * stride * 2 - 1 = (1 + 1) * 2 * 2 - 1 = 7
-
-# Question 
-
-```
-genArray(SIZE - 1, a, 50);  // Leave a 0 at the end to test that edge case
-    a[SIZE - 1] = 0;
-    printArray(SIZE, a, true);
-```
-Why leave 0?
 
 
 
