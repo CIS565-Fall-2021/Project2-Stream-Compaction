@@ -18,8 +18,13 @@ namespace StreamCompaction {
          * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
          */
         void scan(int n, int *odata, const int *idata) {
+            if (n == 0) return;
             timer().startCpuTimer();
-            // TODO
+            // exclusive scan 
+            odata[0] = 0;
+            for (int i = 1; i < n; i++) {
+                odata[i] = odata[i - 1] + idata[i - 1];
+            }
             timer().endCpuTimer();
         }
 
@@ -29,10 +34,15 @@ namespace StreamCompaction {
          * @returns the number of elements remaining after compaction.
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
+            int k = 0;
             timer().startCpuTimer();
-            // TODO
+            for (int i = 0; i < n; i++) {
+                if (idata[i]) {
+                    odata[k++] = idata[i];
+                }
+            }
             timer().endCpuTimer();
-            return -1;
+            return k;
         }
 
         /**
@@ -41,10 +51,30 @@ namespace StreamCompaction {
          * @returns the number of elements remaining after compaction.
          */
         int compactWithScan(int n, int *odata, const int *idata) {
+            int *scanResults = new int[n];
+            float time = 0;
+            // timer starts after allocation
             timer().startCpuTimer();
-            // TODO
+
+            // mapping boolean function
+            for (int i = 0; i < n; i++) {
+                odata[i] = idata[i] != 0;
+            }
+
+            //scan
+            scan(n, scanResults, odata);
+            
+            //compaction
+            int k = 0;
+            for (int i = 0; i < n; i++) {
+                if (idata[i]) {
+                    k++;
+                    odata[scanResults[i]] = idata[i];
+                }
+            }
             timer().endCpuTimer();
-            return -1;
+            printf("Work-Efficient scan: %f ms\n", time);
+            return k;
         }
     }
 }
