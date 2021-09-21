@@ -24,6 +24,10 @@ namespace StreamCompaction {
          */
         __global__ void kernMapToBoolean(int n, int *bools, const int *idata) {
             int idx = threadIdx.x + (blockIdx.x * blockDim.x);
+            if (idx >= n) {
+                return;
+            }
+
 	        bools[idx] = idata[idx] != 0;
         }
 
@@ -34,6 +38,10 @@ namespace StreamCompaction {
         __global__ void kernScatter(int n, int *odata,
                 const int *idata, const int *bools, const int *indices) {
             int idx = threadIdx.x + (blockIdx.x * blockDim.x);
+            if (idx >= n) {
+                return;
+            }
+
             if (bools[idx]) {
                 odata[indices[idx]] = idata[idx];
 	        }
