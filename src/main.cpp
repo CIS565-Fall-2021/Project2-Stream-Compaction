@@ -68,51 +68,51 @@ int main(int argc, char *argv[])
     //printArray(SIZE, c, true);
     printCmpResult(NPOT, b, c);
 
-    // zeroArray(SIZE, c);
-    // printDesc("work-efficient scan, power-of-two");
-    // StreamCompaction::Efficient::scan(SIZE, c, a);
-    // printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    // //printArray(SIZE, c, true);
-    // printCmpResult(SIZE, b, c);
+    zeroArray(SIZE, c);
+    printDesc("work-efficient scan, power-of-two");
+    StreamCompaction::Efficient::scan(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(SIZE, c, true);
+    printCmpResult(SIZE, b, c);
 
-    // zeroArray(SIZE, c);
-    // printDesc("work-efficient scan, non-power-of-two");
-    // StreamCompaction::Efficient::scan(NPOT, c, a);
-    // printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    // //printArray(NPOT, c, true);
-    // printCmpResult(NPOT, b, c);
-
-    int tmpTest[] = {0, 1, 2, 3, 4, 5, 6, 7};
-    int *tmpTestOut = new int[8];
-    zeroArray(8, tmpTestOut);
-    printDesc("Small array slides example scan");
-    StreamCompaction::Efficient::scan(8, tmpTestOut, tmpTest);
+    zeroArray(SIZE, c);
+    printDesc("work-efficient scan, non-power-of-two");
+    StreamCompaction::Efficient::scan(NPOT, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     //printArray(NPOT, c, true);
     printCmpResult(NPOT, b, c);
-    delete[] tmpTestOut;
 
-printDesc("thrust scan, power-of-two");
-StreamCompaction::Thrust::scan(SIZE, c, a);
-printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-//printArray(SIZE, c, true);
-printCmpResult(SIZE, b, c);
+    // int tmpTest[] = {0, 1, 2, 3, 4, 5, 6, 7};
+    // int *tmpTestOut = new int[8];
+    // zeroArray(8, tmpTestOut);
+    // printDesc("Small array slides example scan");
+    // StreamCompaction::Efficient::scan(8, tmpTestOut, tmpTest);
+    // printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    // //printArray(NPOT, c, true);
+    // printCmpResult(NPOT, b, c);
+    // delete[] tmpTestOut;
 
-zeroArray(SIZE, c);
-printDesc("thrust scan, non-power-of-two");
-StreamCompaction::Thrust::scan(NPOT, c, a);
-printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-//printArray(NPOT, c, true);
-printCmpResult(NPOT, b, c);
+    printDesc("thrust scan, power-of-two");
+    StreamCompaction::Thrust::scan(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(SIZE, c, true);
+    printCmpResult(SIZE, b, c);
 
-printf("\n");
-printf("*****************************\n");
-printf("** STREAM COMPACTION TESTS **\n");
-printf("*****************************\n");
+    zeroArray(SIZE, c);
+    printDesc("thrust scan, non-power-of-two");
+    StreamCompaction::Thrust::scan(NPOT, c, a);
+    printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(NPOT, c, true);
+    printCmpResult(NPOT, b, c);
 
-// Compaction tests
+    printf("\n");
+    printf("*****************************\n");
+    printf("** STREAM COMPACTION TESTS **\n");
+    printf("*****************************\n");
 
-    genArray(SIZE - 1, a, 4);  // Leave a 0 at the end to test that edge case
+    // Compaction tests
+
+    genArray(SIZE - 1, a, 4); // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
     printArray(SIZE, a, true);
 

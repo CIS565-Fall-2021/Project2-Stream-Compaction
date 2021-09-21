@@ -13,17 +13,15 @@ namespace StreamCompaction
             static PerformanceTimer timer;
             return timer;
         }
-        __global__ void kernScanNaive(int n, int layer, int *odata, const int *idata)
+        __global__ void kernScanNaive(int n, int layer, int offset, int *odata, const int *idata)
         {
             int index = (blockIdx.x * blockDim.x) + threadIdx.x;
             if (index >= n)
             {
                 return;
             }
-            int offset = pow(2, layer);
             int tmp = idata[index];
             odata[index] = tmp + (index >= offset) * idata[index - offset];
-            // index < offset ? tmp : tmp + idata[index - offset];
         }
 
         /**
@@ -51,7 +49,8 @@ namespace StreamCompaction
             for (int layer = 0; layer < power; layer++)
             {
                 // invoke kernel
-                kernScanNaive<<<fullBlocksPerGrid, blockSize>>>(size, layer, bufB, bufA);
+                int offset = pow(2, layer);
+                kernScanNaive<<<fullBlocksPerGrid, blockSize>>>(size, layer, offset, bufB, bufA);
                 cudaDeviceSynchronize();
                 // swap bufA and bufB
                 tmp = bufA;
