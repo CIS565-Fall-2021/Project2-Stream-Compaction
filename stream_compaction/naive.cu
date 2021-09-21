@@ -5,10 +5,6 @@
 
 #include <iostream> // testing 
 
-/*! Block size used for CUDA kernel launch. */
-#define blockSize 128
-#define sectionSize 128
-
 namespace StreamCompaction {
     namespace Naive {
         using StreamCompaction::Common::PerformanceTimer;
@@ -192,18 +188,24 @@ namespace StreamCompaction {
                 d_OutputData, d_SumArray, n);
             checkCUDAError("kernNaiveGPUScanFirstStep failed!");
 
-            cudaDeviceSynchronize();
+            //();
 
+            // Second step: scan block sums
             kernNaiveGPUScanSecondStep << <dimGridSumArray, dimBlockSumArray >> > (
                 d_SumArray, d_SumArrayOutput, sumArrayNumEle);
             checkCUDAError("kernNaiveGPUScanSecondStep failed!");
 
-            cudaDeviceSynchronize();
+            //cudaDeviceSynchronize();
 
+            // Third step: add scanned block sum i to all values of scanned block
+            // i + 1
             kernNaiveGPUScanThirdStep << <dimGridArray, dimBlockArray >> > (
                 d_SumArrayOutput, d_OutputData, n);
             checkCUDAError("kernNaiveGPUScanThirdStep failed!");
 
+           // cudaDeviceSynchronize();
+
+            // Last step:
             convertFromInclusiveToExclusive << <dimGridArray, dimBlockArray >> > (
                 d_OutputData, d_OutputExclusiveData, n);
             checkCUDAError("convertFromInclusiveToExclusive failed!");

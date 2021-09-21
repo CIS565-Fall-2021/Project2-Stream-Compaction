@@ -16,7 +16,7 @@
 #include "testing_helpers.hpp"
 
 // The tests default to an array of size 1 << 8 = 256
-const int SIZE = 1 << 12; // feel free to change the size of array
+const int SIZE = 1 << 8; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -100,42 +100,7 @@ int main(int argc, char* argv[]) {
     printArray(NPOT, b, true);
     printCmpResult(NPOT, b, c);
 
-#if 0
-
-    printArray(BOOK_SIZE, bookArraya, false);
-    zeroArray(BOOK_SIZE, bookArrayb);
-    printDesc("cpu scan, power-of-two");
-    StreamCompaction::CPU::scan(BOOK_SIZE, bookArrayb, bookArraya);
-    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
-    printArray(BOOK_SIZE, bookArrayb, false);
-
     printf("\n");
-#endif
-    printf("\n");
-
-
-    zeroArray(SIZE, c);
-    printDesc("naive scan, power-of-two");
-    StreamCompaction::Naive::scan(SIZE, c, a);
-    printElapsedTime(StreamCompaction::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    printArray(SIZE, c, true);
-    printCmpResult(SIZE, b, c);
-    
-    /* For bug-finding only: Array of 1s to help find bugs in stream compaction or scan
-    onesArray(SIZE, c);
-    printDesc("1s array for finding bugs");
-    StreamCompaction::Naive::scan(SIZE, c, a);
-    printArray(SIZE, c, true); */
-
-    zeroArray(SIZE, c);
-    printDesc("naive scan, non-power-of-two");
-    StreamCompaction::Naive::scan(NPOT, c, a);
-    printElapsedTime(StreamCompaction::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(SIZE, c, true);
-    printCmpResult(NPOT, b, c);
-
-#if 0
-
 
     zeroArray(SIZE, c);
     printDesc("work-efficient scan, power-of-two");
@@ -152,6 +117,28 @@ int main(int argc, char* argv[]) {
     printCmpResult(NPOT, b, c);
 
     zeroArray(SIZE, c);
+    printDesc("naive scan, power-of-two");
+    StreamCompaction::Naive::scan(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    // printArray(SIZE, c, true);
+    printCmpResult(SIZE, b, c);
+
+    /* For bug-finding only: Array of 1s to help find bugs in stream compaction or scan
+    onesArray(SIZE, c);
+    printDesc("1s array for finding bugs");
+    StreamCompaction::Naive::scan(SIZE, c, a);
+    printArray(SIZE, c, true); */
+
+    zeroArray(SIZE, c);
+    printDesc("naive scan, non-power-of-two");
+    StreamCompaction::Naive::scan(NPOT, c, a);
+    printElapsedTime(StreamCompaction::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(SIZE, c, true);
+    printCmpResult(NPOT, b, c);
+
+
+#if 0
+    zeroArray(SIZE, c);
     printDesc("thrust scan, power-of-two");
     StreamCompaction::Thrust::scan(SIZE, c, a);
     printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
@@ -167,7 +154,7 @@ int main(int argc, char* argv[]) {
 
 #endif
 
-#if 0
+
     printf("\n");
     printf("*****************************\n");
     printf("** STREAM COMPACTION TESTS **\n");
@@ -206,21 +193,19 @@ int main(int argc, char* argv[]) {
     printArray(count, c, true);
     printCmpLenResult(count, expectedCount, b, c);
 
-
     zeroArray(SIZE, c);
     printDesc("work-efficient compact, power-of-two");
     count = StreamCompaction::Efficient::compact(SIZE, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(count, c, true);
+    printArray(count, c, true);
     printCmpLenResult(count, expectedCount, b, c);
 
     zeroArray(SIZE, c);
     printDesc("work-efficient compact, non-power-of-two");
     count = StreamCompaction::Efficient::compact(NPOT, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(count, c, true);
+    printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
-#endif
 
     system("pause"); // stop Win32 console from closing on exit
     delete[] a;

@@ -10,6 +10,10 @@
 #include <chrono>
 #include <stdexcept>
 
+/*! Block size used for CUDA kernel launch. */
+#define blockSize 128
+#define sectionSize 128
+
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 // usage: checkCUDAError("a descriptive name of this error")
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
