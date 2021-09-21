@@ -162,7 +162,16 @@ namespace StreamCompaction
             checkCUDAErrorWithLine("cudaDeviceSynchronize failed!");
             timer().endGpuTimer();
 
-            cudaMemcpy(odata, tmpOut + offset, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, tmpOut, n * sizeof(int), cudaMemcpyDeviceToHost);
+            checkCUDAErrorWithLine("cudaMemcpy failed!");
+            int retSize;
+            cudaMemcpy(&retSize, indices + size - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            checkCUDAErrorWithLine("cudaMemcpy failed!");
+            int tmpLast;
+            cudaMemcpy(&tmpLast, buf + size - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            checkCUDAErrorWithLine("cudaMemcpy failed!");
+            retSize += (tmpLast != 0);
+
             checkCUDAErrorWithLine("cudaMemcpy failed!");
             cudaFree(buf);
             checkCUDAErrorWithLine("cudaFree buf failed!");
@@ -172,7 +181,7 @@ namespace StreamCompaction
             checkCUDAErrorWithLine("cudaFree indices failed!");
             cudaFree(tmpOut);
             checkCUDAErrorWithLine("cudaFree tmpOut failed!");
-            return -1;
+            return retSize;
         }
     }
 }
