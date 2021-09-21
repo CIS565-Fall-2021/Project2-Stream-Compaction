@@ -12,6 +12,16 @@ namespace StreamCompaction {
             return timer;
         }
 
+        int _scan(int n, int* odata, const int* idata) {
+          int sum = 0;
+          for (int i = 0; i < n; ++i) {
+            odata[i] = sum;
+            sum += idata[i];
+          }
+          
+          return sum;
+        }
+
         /**
          * CPU scan (prefix sum).
          * For performance analysis, this is supposed to be a simple for loop.
@@ -19,13 +29,7 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-
-            int sum = 0;
-            for (int i = 0; i < n; ++i) {
-              odata[i] = sum;
-              sum += idata[i];
-            }
-
+            _scan(n, odata, idata);
             timer().endCpuTimer();
         }
 
@@ -63,13 +67,8 @@ namespace StreamCompaction {
               bitmap[i] = idata[i] != 0;
             }
 
-            // scan implementation
             int* scannedBitmap = (int*)std::malloc(n * sizeof(int));
-            int count = 0;
-            for (int i = 0; i < n; ++i) {
-              scannedBitmap[i] = count;
-              count += bitmap[i];
-            }
+            int count = _scan(n, scannedBitmap, bitmap);
 
             for (int i = 0; i < n - 1; ++i) {
               if (scannedBitmap[i] != scannedBitmap[i + 1]) {
