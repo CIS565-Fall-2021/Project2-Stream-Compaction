@@ -11,8 +11,8 @@
 #include <stdexcept>
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 1024
-#define sectionSize 1024
+#define blockSize 256
+#define sectionSize 256
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 // usage: checkCUDAError("a descriptive name of this error")

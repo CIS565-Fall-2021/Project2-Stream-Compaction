@@ -144,6 +144,8 @@ namespace StreamCompaction {
             }
         }
 
+        
+
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
@@ -157,6 +159,7 @@ namespace StreamCompaction {
             int* d_OutputExclusiveData;
             int* d_SumArray;
             int* d_SumArrayOutput;
+            int* d_SumArrayAx;
 
             cudaMalloc((void**)&d_InputData, size);
             checkCUDAError("cudaMalloc d_InputData failed!");
@@ -173,6 +176,9 @@ namespace StreamCompaction {
             cudaMalloc((void**)&d_SumArrayOutput, sumArraySize);
             checkCUDAError("cudaMalloc d_SumArrayOutput failed!");
 
+            cudaMalloc((void**)&d_SumArrayAx, sumArraySize);
+            checkCUDAError("cudaMalloc d_SumArrayOutput failed!");
+
             cudaMemcpy(d_InputData, idata, size, cudaMemcpyHostToDevice);
 
             dim3 dimGridArray((n + blockSize - 1) / blockSize, 1, 1);
@@ -181,6 +187,10 @@ namespace StreamCompaction {
             dim3 dimGridSumArray((sumArrayNumEle + blockSize - 1) / blockSize, 1, 1);
             dim3 dimBlockSumArray(blockSize, 1, 1);
 
+            // for testing
+            int* sumArray = new int[sumArrayNumEle];
+            int* sumArrayOutput = new int[sumArrayNumEle];
+
             timer().startGpuTimer();
             // First step: compute the scan result for individual sections
             // then, store their block sum to sumArray
@@ -188,13 +198,50 @@ namespace StreamCompaction {
                 d_OutputData, d_SumArray, n);
             checkCUDAError("kernNaiveGPUScanFirstStep failed!");
 
-            //();
+            // cudaDeviceSynchronize();
+
+            cudaMemcpy(odata, d_OutputData, size, cudaMemcpyDeviceToHost);
+            checkCUDAError("memCpy back failed!");
+
+            cudaMemcpy(sumArray, d_SumArray, sumArraySize, cudaMemcpyDeviceToHost);
+            checkCUDAError("memCpy back failed!");
+
+            std::cout << '\n';
+            for (int i = 0; i < n; i++)
+            {
+                std::cout << odata[i] << ' ';
+                if ((i + 1) % 8 == 0) {
+                    std::cout << std::endl;
+                }
+            }
+
+            std::cout << '\n';
+            for (int i = 0; i < sumArrayNumEle; i++)
+            {
+                std::cout << sumArray[i] << ' ';
+            }
+
+            std::cout << '\n';
 
             // Second step: scan block sums
-            kernNaiveGPUScanSecondStep << <dimGridSumArray, dimBlockSumArray >> > (
-                d_SumArray, d_SumArrayOutput, sumArrayNumEle);
-            checkCUDAError("kernNaiveGPUScanSecondStep failed!");
+            kernNaiveGPUScanFirstStep << <dimGridSumArray, dimBlockSumArray >> > (d_SumArray,
+                d_SumArrayOutput, d_SumArrayAx, n);
 
+            kernNaiveGPUScanThirdStep << <dimGridSumArray, dimBlockSumArray >> > (
+                d_SumArrayAx, d_SumArrayOutput, n);
+
+            cudaMemcpy(sumArrayOutput, d_SumArrayOutput, sumArraySize,
+                cudaMemcpyDeviceToHost);
+            checkCUDAError("memCpy back failed!");
+
+            printf("\n");
+
+            for (int i = 0; i < sumArrayNumEle; i++)
+            {
+                std::cout << sumArrayOutput[i] << ' ';
+            }
+
+            printf("\n");
             //cudaDeviceSynchronize();
 
             // Third step: add scanned block sum i to all values of scanned block
@@ -202,8 +249,6 @@ namespace StreamCompaction {
             kernNaiveGPUScanThirdStep << <dimGridArray, dimBlockArray >> > (
                 d_SumArrayOutput, d_OutputData, n);
             checkCUDAError("kernNaiveGPUScanThirdStep failed!");
-
-           // cudaDeviceSynchronize();
 
             // Last step:
             convertFromInclusiveToExclusive << <dimGridArray, dimBlockArray >> > (
