@@ -4,7 +4,7 @@
 #include "naive.h"
 
 #ifndef BLOCKSIZE
-#define BLOCKSIZE 128
+#define BLOCKSIZE 512
 #endif // !BLOCKSIZE
 
 
@@ -18,7 +18,7 @@ namespace StreamCompaction {
         }
 
         __global__ void kernNaiveScan(int n, int *odata, const int *idata, int d) {
-            int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+            long index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
             if (index >= n) {
                 return;
@@ -49,6 +49,7 @@ namespace StreamCompaction {
             cudaMalloc((void**)&dev_writeable, paddedN * sizeof(int));
 
             cudaMemcpy(dev_readable, idata, paddedN * sizeof(int), cudaMemcpyHostToDevice);
+			checkCUDAErrorFn("memcopy failed", "naive.cu", 51);
 
             timer().startGpuTimer();
             // --- begin iterative all-prefix-sum
@@ -57,9 +58,9 @@ namespace StreamCompaction {
 
                 // --- call scan ---
 
-				kernNaiveScan <<<n, BLOCKSIZE>>> (paddedN, dev_writeable, dev_readable, d);
-				checkCUDAErrorFn("naiveScan failed", "naive.cu", 63);
+				kernNaiveScan <<<n/BLOCKSIZE, BLOCKSIZE>>> (paddedN, dev_writeable, dev_readable, d);
 				cudaDeviceSynchronize();
+				checkCUDAErrorFn("naiveScan failed", "naive.cu", 63);
 
                 // --- ping pong buffers ---
 
