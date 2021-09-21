@@ -152,7 +152,6 @@ namespace StreamCompaction {
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
-            // unitTestConversion();
             int size = n * sizeof(int);
             int sumArrayNumEle = (n + blockSize - 1) / blockSize;
             int sumArraySize = sumArrayNumEle * sizeof(int);
@@ -162,11 +161,6 @@ namespace StreamCompaction {
             int* d_OutputExclusiveData;
             int* d_SumArray;
             int* d_SumArrayOutput;
-     
-
-            // for testing
-            int* sumArray = new int[sumArrayNumEle];
-            int* sumArrayOutput = new int[sumArrayNumEle];
 
             cudaMalloc((void**)&d_InputData, size);
             checkCUDAError("cudaMalloc d_InputData failed!");
@@ -219,38 +213,6 @@ namespace StreamCompaction {
             cudaMemcpy(odata, d_OutputExclusiveData, size, cudaMemcpyDeviceToHost);
             checkCUDAError("memCpy back failed!");
 
-            // testing: 
-            cudaMemcpy(sumArray, d_SumArray, sumArraySize, cudaMemcpyDeviceToHost);
-            checkCUDAError("memCpy back failed!");
-            cudaMemcpy(sumArrayOutput, d_SumArrayOutput, sumArraySize,
-                cudaMemcpyDeviceToHost);
-            checkCUDAError("memCpy back failed!");
-
-            printf("\n");
-            for (int i = 0; i < sumArrayNumEle; i++)
-            {
-                std::cout << sumArray[i] << '\n';
-            }
-
-
-            printf("\n");
-
-            for (int i = 0; i < sumArrayNumEle; i++)
-            {
-                std::cout << sumArrayOutput[i] << '\n';
-            }
-
-            std::cout << '\n';
-            for (int i = 0; i < n; i++)
-            {
-                std::cout << odata[i] << '\n';
-            }
-
-
-
-
-
-
             // cleanup
             cudaFree(d_InputData);
             cudaFree(d_OutputData);
@@ -258,10 +220,6 @@ namespace StreamCompaction {
             cudaFree(d_SumArray);
             cudaFree(d_SumArrayOutput);
             checkCUDAError("cudaFree failed!");
-
-            // testing clean up
-            delete[] sumArray;
-            delete[] sumArrayOutput;
         }
     }
 }
