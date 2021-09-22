@@ -7,9 +7,6 @@ CUDA Stream Compaction
 * Tested on: Windows 10, AMD Ryzen 3800x @ 3.9Hz 2x16GB RAM, RTX 2080 Super 8GB
 
 **Overview**
-
-This project implements Scan and Stream Compaction and tests performance of various implementations with different array size and block size( all implementations support Non-Power-Of-Two input). The detailed list is shown below.
-
 *Scan 
   *cpu
   *naive (gpu)
