@@ -245,6 +245,7 @@ namespace StreamCompaction {
                     int value_ind = block_ind2 * blockSize - 1;
                     kernAdd << <fullBlocksPerGrid, blockSize >> > (array_length, value_ind, dev_array_static, start_ind, dev_array);
                 }
+                cudaDeviceSynchronize();
             }
             timer().endGpuTimer();
             cudaMemcpy(odata + 1, dev_array, (array_length - 1) * sizeof(int), cudaMemcpyDeviceToHost);
