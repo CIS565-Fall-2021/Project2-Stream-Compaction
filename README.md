@@ -8,8 +8,6 @@
 
 ---
 
-I would like to extend project 2 by one day, please. 
-
 ## Features
 
 - CPU Scan & Stream Compaction
@@ -18,6 +16,8 @@ I would like to extend project 2 by one day, please.
 - Thrust's Scan Algorithm
 
 For all GPU Scan algorithms, I choose to implement inclusive Scan first, and then convert the result of inclusive Scan to exclusive Scan. This can be done in parallel with minimal code. 
+
+In this version, the partial sum array has a maximum size of 1024. Thus, the number of elements the Scan algorithm can handle is limited. 
 
 ## Performance Analysis
 
