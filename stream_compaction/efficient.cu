@@ -52,8 +52,6 @@ namespace StreamCompaction {
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
-          timer().startGpuTimer();
-
           int nPow2 = 1 << ilog2ceil(n);
 
           int* dev_buf;
@@ -63,12 +61,17 @@ namespace StreamCompaction {
           cudaMemcpy(dev_buf, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
           checkCUDAError("cudaMemcpy to device failed!");
 
+          timer().startGpuTimer();
+
           _scan(nPow2, dev_buf);
+
+          timer().endGpuTimer();
 
           cudaMemcpy(odata, dev_buf, sizeof(int) * n, cudaMemcpyDeviceToHost);
           checkCUDAError("cudaMemcpy from device failed!");
 
-          timer().endGpuTimer();
+          cudaFree(dev_buf);
+          checkCUDAError("cudaFree dev_buf failed!");
         }
 
         /**
@@ -81,8 +84,6 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
-
             dim3 fullBlocksPerGrid = ((n + blockSize - 1) / blockSize);
 
             int nPow2 = 1 << ilog2ceil(n);
@@ -101,6 +102,8 @@ namespace StreamCompaction {
             int* dev_indices;
             cudaMalloc((void**)&dev_indices, sizeof(int) * nPow2);
             checkCUDAError("cudaMalloc dev_indices failed!");
+
+            timer().startGpuTimer();
 
             Common::kernMapToBoolean << <fullBlocksPerGrid, blockSize >> > (n, dev_bools, dev_input);
             checkCUDAError("kernMapToBoolean failed!");
@@ -122,6 +125,8 @@ namespace StreamCompaction {
             Common::kernScatter << <fullBlocksPerGrid, blockSize >> > (n, dev_output, dev_input, dev_bools, dev_indices);
             checkCUDAError("kernScatter failed!");
 
+            timer().endGpuTimer();
+
             cudaMemcpy(odata, dev_output, sizeof(int) * count, cudaMemcpyDeviceToHost);
             checkCUDAError("cudaMemcpy output to host failed!");
 
@@ -137,7 +142,6 @@ namespace StreamCompaction {
             cudaFree(dev_indices);
             checkCUDAError("cudaFree dev_indices failed!");
 
-            timer().endGpuTimer();
             return count;
         }
     }

@@ -59,27 +59,27 @@ namespace StreamCompaction {
          * @returns the number of elements remaining after compaction.
          */
         int compactWithScan(int n, int *odata, const int *idata) {
+            int* bitmap = (int*)std::malloc(n * sizeof(int));
+            int* scannedBitmap = (int*)std::malloc(n * sizeof(int));
+
             timer().startCpuTimer();
 
             // map array to 0s and 1s
-            int* bitmap = (int*)std::malloc(n * sizeof(int));
             for (int i = 0; i < n; ++i) {
               bitmap[i] = idata[i] != 0;
             }
 
-            int* scannedBitmap = (int*)std::malloc(n * sizeof(int));
             int count = _scan(n, scannedBitmap, bitmap);
-
             for (int i = 0; i < n - 1; ++i) {
               if (scannedBitmap[i] != scannedBitmap[i + 1]) {
                 odata[scannedBitmap[i]] = idata[i];
               }
             }
 
+            timer().endCpuTimer();
+
             std::free(bitmap);
             std::free(scannedBitmap);
-
-            timer().endCpuTimer();
 
             return count;
         }
