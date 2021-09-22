@@ -20,25 +20,23 @@ namespace StreamCompaction {
             return timer;
         }
 
-        __global__ void kernParallelReduction(int *data, int d){
+        __global__ void kernParallelReduction(int *data, int d, int powd, int powd1){
             int k = (blockDim.x * blockIdx.x) + threadIdx.x;
 
-            // start index for each thread
-            int startIndex = pow(2, d) - 1;
             // offset the index
-            int index = startIndex + pow(2, d+1) * k; 
+            int index = (powd - 1) + powd1 * k;
 
             int i1 = index;
-            int i2 = index + pow(2, d);
+            int i2 = index + powd;
 
             data[i2] += data[i1];
         }
 
-        __global__ void kernDownSweep(int *data, int d, bool firstLoop){
+        __global__ void kernDownSweep(int *data, int d, bool firstLoop, int powd, int powd1){
             int index = (blockDim.x * blockIdx.x) + threadIdx.x;
-            int offset = index * (pow(2, d + 1) - 1);
-            int i1 = index + pow(2, d) - 1 + offset;
-            int i2 = index + pow(2, d + 1) - 1 + offset;
+            int offset = index * (powd1 - 1);
+            int i1 = index + powd - 1 + offset;
+            int i2 = index + powd1 - 1 + offset;
 
             // set last item to 0 on first loop
             if (firstLoop) {
@@ -69,7 +67,9 @@ namespace StreamCompaction {
                 numThreads = numThreads / 2;
                 fullBlocksPerGrid = dim3((numThreads + blockSize - 1) / blockSize);
 
-                kernParallelReduction<<<fullBlocksPerGrid, numThreads>>>(dev_data_scan, d);
+                int powd = pow(2, d);
+                int powd1 = pow(2, d + 1);
+                kernParallelReduction<<<fullBlocksPerGrid, numThreads>>>(dev_data_scan, d, powd, powd1);
             }
 
             // perform down-sweep
@@ -78,10 +78,13 @@ namespace StreamCompaction {
                 fullBlocksPerGrid = dim3((numThreads + blockSize - 1) / blockSize);
                 firstLoop = d == ilog2ceil(n) - 1;
 
-                kernDownSweep<<<fullBlocksPerGrid, numThreads>>>(dev_data_scan, d, firstLoop);
+                int powd = pow(2, d);
+                int powd1 = pow(2, d + 1);
+                kernDownSweep<<<fullBlocksPerGrid, numThreads>>>(dev_data_scan, d, firstLoop, powd, powd1);
 
                 numThreads = numThreads * 2;
             }
+
             timer().endGpuTimer();
 
             cudaMemcpy(odata, dev_data_scan, n * sizeof(int), cudaMemcpyDeviceToHost);
@@ -107,7 +110,9 @@ namespace StreamCompaction {
                 numThreads = numThreads / 2;
                 fullBlocksPerGrid = dim3((numThreads + blockSize - 1) / blockSize);
 
-                kernParallelReduction << <fullBlocksPerGrid, numThreads >> > (dev_data_scan, d);
+                int powd = pow(2, d);
+                int powd1 = pow(2, d + 1);
+                kernParallelReduction << <fullBlocksPerGrid, numThreads >> > (dev_data_scan, d, powd, powd1);
             }
             // save size of compact array from last elem of reduction
             int compactSize;
@@ -119,7 +124,9 @@ namespace StreamCompaction {
                 fullBlocksPerGrid = dim3((numThreads + blockSize - 1) / blockSize);
                 firstLoop = d == ilog2ceil(n) - 1;
 
-                kernDownSweep << <fullBlocksPerGrid, numThreads >> > (dev_data_scan, d, firstLoop);
+                int powd = pow(2, d);
+                int powd1 = pow(2, d + 1);
+                kernDownSweep << <fullBlocksPerGrid, numThreads >> > (dev_data_scan, d, firstLoop, powd, powd1);
 
                 numThreads = numThreads * 2;
             }

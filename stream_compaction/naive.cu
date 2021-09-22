@@ -18,9 +18,9 @@ namespace StreamCompaction {
             static PerformanceTimer timer;
             return timer;
         }
-        __global__ void kernScan(int n, int *odata, int *idata, int d){
+        __global__ void kernScan(int n, int *odata, int *idata, int d, int powd_min1){
             int index = (blockDim.x * blockIdx.x) + threadIdx.x;
-            int offset = pow(2, d - 1);
+            int offset = powd_min1;
 
             // if d == 1, shift array over to accomodate first 0
             int outIndex = d == 1 ? index + 1 : index;
@@ -57,13 +57,8 @@ namespace StreamCompaction {
             
             // for log iterations, perform scan
             for (int d = 1; d < ilog2ceil(n) + 1; d++){
-                kernScan << <fullBlocksPerGrid, n >> > (n, dev_data2, dev_data1, d);
-
-                // FOR TESTING ONLY
-                /*cudaMemcpy(odata, dev_data2, n * sizeof(int), cudaMemcpyDeviceToHost);
-                std::cout << "Round: " << d << ", [" << odata[0] << ", " << odata[1] << ", " << odata[2] << ", " << odata[3] << ", "
-                    << odata[4] << ", " << odata[5] << ", " << odata[6] << ", " << odata[7] << ", "
-                    << odata[8] << ", " << odata[9] << "]" << std::endl;*/
+                int powd_min1 = pow(2, d - 1);
+                kernScan << <fullBlocksPerGrid, n >> > (n, dev_data2, dev_data1, d, powd_min1);
                 
                 // ping-pong
                 int *tmp = dev_data1;
