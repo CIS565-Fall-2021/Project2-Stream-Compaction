@@ -1,6 +1,6 @@
 #include <cstdio>
 #include "cpu.h"
-
+#include <iostream>
 #include "common.h"
 
 namespace StreamCompaction {
@@ -19,7 +19,10 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            odata[0] = 0; // explicit starts with 0
+            for (int i = 0; i < n - 1; i++){
+                odata[i+1] = odata[i] + idata[i];   
+            }
             timer().endCpuTimer();
         }
 
@@ -30,9 +33,18 @@ namespace StreamCompaction {
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            
+            int compactSize = 0;
+            for (int i = 0; i < n; i++){
+                bool elem = idata[i];
+                if (elem){
+                    odata[compactSize] = idata[i]; 
+                    compactSize++;
+                }
+            }
+            
             timer().endCpuTimer();
-            return -1;
+            return compactSize;
         }
 
         /**
@@ -42,9 +54,25 @@ namespace StreamCompaction {
          */
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            
+            // scan array, replacing true vals with 1s
+            odata[0] = 0;
+            for (int i = 0; i < n; i++) {
+                int elem = idata[i] ? 1 : 0;  
+                odata[i + 1] = odata[i] + elem;
+            }
+            
+            // use scatter to produce output
+            int size = odata[n-1];
+            for (int i = 0; i < n; i++){
+                if (idata[i]){ 
+                    int outIndex = odata[i];
+                    odata[outIndex] = idata[i]; 
+                }    
+            }
+            
             timer().endCpuTimer();
-            return -1;
+            return size;
         }
     }
 }
