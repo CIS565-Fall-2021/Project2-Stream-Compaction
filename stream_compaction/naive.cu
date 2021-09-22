@@ -21,7 +21,7 @@ namespace StreamCompaction
                 return;
             }
             int tmp = idata[index];
-            odata[index] = tmp + (index >= offset) ? idata[index - offset] : 0;
+            odata[index] = tmp + ((index >= offset) ? idata[index - offset] : 0);
         }
 
         /**
