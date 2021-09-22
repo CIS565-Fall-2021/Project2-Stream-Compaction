@@ -13,7 +13,7 @@
 #include <stream_compaction/thrust.h>
 #include "testing_helpers.hpp"
 
-const int SIZE = 1 << 8; // feel free to change the size of array
+const int SIZE = 1 << 20; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
     printDesc("cpu scan, non-power-of-two");
     StreamCompaction::CPU::scan(NPOT, c, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
-    printArray(NPOT, b, true);
+    //printArray(NPOT, b, true);
     printCmpResult(NPOT, b, c);
 
     zeroArray(SIZE, c);
@@ -146,6 +146,29 @@ int main(int argc, char* argv[]) {
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
+
+    printf("\n");
+    printf("*****************************\n");
+    printf("** RADIX SORT TESTS **\n");
+    printf("*****************************\n");
+
+    genArray(SIZE - 1, a, 20);  // Leave a 0 at the end to test that edge case
+    a[SIZE - 1] = 0;
+    printArray(SIZE, a, true);
+    
+    zeroArray(SIZE, b);
+    printDesc("radix sort, power-of-two");
+    StreamCompaction::Efficient::radixSort(SIZE, b, a);
+    std::memcpy(c, a, SIZE * sizeof(int));
+    std::sort(c, c + SIZE);
+    printCmpResult(SIZE, b, c);
+    
+    zeroArray(NPOT, b);
+    printDesc("radix sort, non-power-of-two");
+    StreamCompaction::Efficient::radixSort(NPOT, b, a);
+    std::memcpy(c, a, NPOT * sizeof(int));
+    std::sort(c, c + NPOT);
+    printCmpResult(NPOT, b, c);
 
     system("pause"); // stop Win32 console from closing on exit
     delete[] a;
