@@ -33,22 +33,22 @@ namespace StreamCompaction {
             cudaMalloc((void**)&deviceOut, n * sizeof(int));
             cudaMemcpy(deviceIn, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
             cudaMemcpy(deviceOut, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
+
+            dim3 fullBlocksPerGrid((n + BLOCK_SIZE - 1) / BLOCK_SIZE);
             
             timer().startGpuTimer();
-            int blockSize = 128;
            
-            dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
-
             for (int d = 1; d <= ilog2ceil(n); d++) {
-                kernScan << < fullBlocksPerGrid, blockSize >> > (n, d, deviceIn, deviceOut);
+                kernScan << < fullBlocksPerGrid, BLOCK_SIZE >> > (n, d, deviceIn, deviceOut);
                 checkCUDAError("kernScan failed");
                 cudaMemcpy(deviceIn, deviceOut, sizeof(int) * n, cudaMemcpyDeviceToDevice);
             }
+
             timer().endGpuTimer();
 
             odata[0] = 0;
          
-            //shift
+            //shift from inclusive to exclusive
             cudaMemcpy(odata + 1, deviceIn, sizeof(int) * (n - 1), cudaMemcpyDeviceToHost);
 
             checkCUDAError("cudaMemcpy back failed!");

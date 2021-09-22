@@ -45,35 +45,39 @@ namespace StreamCompaction {
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
-        void scan(int n, int *odata, const int *idata) {
+        void scan(int n, int *odata, const int *idata, bool timing) {
 
-            //padd to power of 2
+            //pad to power of 2
             int paddedSize = 1 << ilog2ceil(n);
 
             int* deviceIn;
             cudaMalloc((void**)&deviceIn, paddedSize * sizeof(int));
 
+            dim3 fullBlocksPerGrid((paddedSize + BLOCK_SIZE - 1) / BLOCK_SIZE);
+
             //From index n to paddedSize are 0s.
             cudaMemcpy(deviceIn, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
 
-            timer().startGpuTimer();
-            int blockSize = 128;
-            dim3 fullBlocksPerGrid((paddedSize + blockSize - 1) / blockSize);
-          
+            if (timing) {
+                timer().startGpuTimer();
+            }
+
             //Up sweep
             for (int d = 0; d <= ilog2ceil(paddedSize) - 1; d++) {
-                kernUpSweep << < fullBlocksPerGrid, blockSize >> > (d, paddedSize, deviceIn);
+                kernUpSweep << < fullBlocksPerGrid, BLOCK_SIZE >> > (d, paddedSize, deviceIn);
                 checkCUDAError("kernUpSweep failed");
             }
 
             //Down sweep 
             kernSetZero << < 1, 1 >> > (paddedSize, deviceIn);
             for (int d = ilog2ceil(paddedSize) - 1; d >= 0; d--) {
-                kernDownSweep << < fullBlocksPerGrid, blockSize >> > (d, paddedSize, deviceIn);
+                kernDownSweep << < fullBlocksPerGrid, BLOCK_SIZE >> > (d, paddedSize, deviceIn);
                 checkCUDAError("kernDownSweep failed");
             }
 
-            timer().endGpuTimer();
+            if (timing) {
+                timer().endGpuTimer();
+            }
 
             cudaMemcpy(odata, deviceIn, sizeof(int) * n, cudaMemcpyDeviceToHost);
             cudaFree(deviceIn);
@@ -90,8 +94,7 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int *odata, const int *idata) {
-            int blockSize = 128;
-            dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
+            dim3 fullBlocksPerGrid((n + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
             int* count = new int[2];
 
@@ -106,17 +109,17 @@ namespace StreamCompaction {
 
             cudaMemcpy(deviceIn, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
 
-            //timer().startGpuTimer();
+            timer().startGpuTimer();
 
-            kernMapToBoolean << <fullBlocksPerGrid, blockSize >> > (n, deviceBool, deviceIn);
+            kernMapToBoolean << <fullBlocksPerGrid, BLOCK_SIZE >> > (n, deviceBool, deviceIn);
             checkCUDAError("kernMapToBoolean failed!");
 
-            scan(n, deviceBoolPSum, deviceBool);
+            scan(n, deviceBoolPSum, deviceBool, false);
 
-            kernScatter << <fullBlocksPerGrid, blockSize >> > (n, deviceOut, deviceIn, deviceBool, deviceBoolPSum);
+            kernScatter << <fullBlocksPerGrid, BLOCK_SIZE >> > (n, deviceOut, deviceIn, deviceBool, deviceBoolPSum);
             checkCUDAError("kernScatter failed!");
 
-            //timer().endGpuTimer();
+            timer().endGpuTimer();
 
             cudaMemcpy(count, deviceBool + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
             cudaMemcpy(count + 1, deviceBoolPSum + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
