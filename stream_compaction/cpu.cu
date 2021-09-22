@@ -67,6 +67,8 @@ namespace StreamCompaction {
             }
             timer().endCpuTimer();
             return count;
+
+            
         }
 
         /**
@@ -105,7 +107,6 @@ namespace StreamCompaction {
                 }
             }
 
-            timer().endCpuTimer();
             return count;
         }
     }

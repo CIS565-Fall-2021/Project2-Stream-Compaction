@@ -13,7 +13,7 @@
 #include <stream_compaction/thrust.h>
 #include "testing_helpers.hpp"
 
-const int SIZE = 1 << 13; // feel free to change the size of array
+const int SIZE = 1 << 10; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -105,19 +105,19 @@ int main(int argc, char* argv[]) {
 
     genArray(SIZE - 1, a, 4);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
-    printArray(SIZE, a, true);
+    printArray(SIZE, a, false);
 
     int count, expectedCount, expectedNPOT;
 
     // initialize b using StreamCompaction::CPU::compactWithoutScan you implement
     // We use b for further comparison. Make sure your StreamCompaction::CPU::compactWithoutScan is correct.
-    //zeroArray(SIZE, b);
-    //printDesc("cpu compact without scan, power-of-two");
-    //count = StreamCompaction::CPU::compactWithoutScan(SIZE, b, a);
-    //printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
-    //expectedCount = count;
-    //printArray(count, b, true);
-    //printCmpLenResult(count, expectedCount, b, b);
+    zeroArray(SIZE, b);
+    printDesc("cpu compact without scan, power-of-two");
+    count = StreamCompaction::CPU::compactWithoutScan(SIZE, b, a);
+    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
+    expectedCount = count;
+    printArray(count, b, true);
+    printCmpLenResult(count, expectedCount, b, b);
 
     //zeroArray(SIZE, c);
     //printDesc("cpu compact without scan, non-power-of-two");
@@ -134,12 +134,12 @@ int main(int argc, char* argv[]) {
     //printArray(count, c, true);
     //printCmpLenResult(count, expectedCount, b, c);
 
-    //zeroArray(SIZE, c);
-    //printDesc("work-efficient compact, power-of-two");
-    //count = StreamCompaction::Efficient::compact(SIZE, c, a);
-    //printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    ////printArray(count, c, true);
-    //printCmpLenResult(count, expectedCount, b, c);
+    zeroArray(SIZE, c);
+    printDesc("work-efficient compact, power-of-two");
+    count = StreamCompaction::Efficient::compact(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printArray(count, c, true);
+    printCmpLenResult(count, expectedCount, b, c);
 
     //zeroArray(SIZE, c);
     //printDesc("work-efficient compact, non-power-of-two");

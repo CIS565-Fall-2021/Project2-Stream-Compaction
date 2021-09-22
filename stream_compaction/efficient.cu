@@ -25,6 +25,11 @@ namespace StreamCompaction {
 
         int* dev_array;
         int* dev_array_static;
+
+        int* dev_idata;
+        int* dev_odata;
+        int* bools;
+        int* indices;
         
 
         //__global__ void kernReduction_1st_attempt(
@@ -168,6 +173,7 @@ namespace StreamCompaction {
                 }
                 __syncthreads();
             }
+            __syncthreads();
             // convert result to inclusive
             if (tx != blockSize - 1) {
                 array[start_ind + tx] = share_array[tx + 1];
@@ -202,7 +208,7 @@ namespace StreamCompaction {
         //    }
         //}
 
-        void scan(int n, int* odata, const int* idata) {
+        void scan(int n, int* odata, const int* idata, bool timer_on) {
             int depth = ilog2ceil(n);
             int array_length = pow(2, depth);
             if (ilog2(n) != depth) {
@@ -223,7 +229,9 @@ namespace StreamCompaction {
                 num_block = array_length / blockSize;
             }
 
-            timer().startGpuTimer();
+            if (timer_on) {
+                timer().startGpuTimer();
+            }
             for (int block_ind = 0; block_ind < num_block; block_ind++) {
                 int start_ind = block_ind * blockSize;
                 kernReduction << <fullBlocksPerGrid, blockSize >> > (array_length, start_ind, dev_array);
@@ -238,7 +246,6 @@ namespace StreamCompaction {
 
             cudaMalloc((void**)&dev_array_static, array_length * sizeof(int));
             cudaMemcpy(dev_array_static, dev_array, array_length * sizeof(int), cudaMemcpyHostToDevice);
-            
             for (int block_ind2 = 1; block_ind2 < num_block; block_ind2++) {
                 for (int block_ind = block_ind2; block_ind < num_block; block_ind++) {
                     int start_ind = block_ind * blockSize;
@@ -247,7 +254,9 @@ namespace StreamCompaction {
                 }
                 cudaDeviceSynchronize();
             }
-            timer().endGpuTimer();
+            if (timer_on) {
+                timer().endGpuTimer();
+            }
             cudaMemcpy(odata + 1, dev_array, (array_length - 1) * sizeof(int), cudaMemcpyDeviceToHost);
             odata[0] = 0;
             //printf("\n");
@@ -300,10 +309,48 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int* odata, const int* idata) {
+            int depth = ilog2ceil(n);
+            int array_length = pow(2, depth);
+            if (ilog2(n) != depth) {
+                int* new_idata = new int[array_length];
+                memset(new_idata, 0, array_length * sizeof(int));
+                memcpy(new_idata, idata, n * sizeof(int));
+                idata = new_idata;
+            }
+            cudaMalloc((void**)&bools, array_length * sizeof(int));
+            cudaMalloc((void**)&indices, array_length * sizeof(int));
+            cudaMalloc((void**)&dev_idata, array_length * sizeof(int));
+            cudaMalloc((void**)&dev_odata, array_length * sizeof(int));
+            cudaMemcpy(dev_idata, idata, array_length * sizeof(int), cudaMemcpyHostToDevice);
+            dim3 fullBlocksPerGrid((array_length + blockSize - 1) / blockSize);
+            int count = 0;
+            int* host_bools = (int*) malloc(array_length * sizeof(int));
+
             timer().startGpuTimer();
-            // TODO
+            Common::kernMapToBoolean << <fullBlocksPerGrid, blockSize >> > (array_length, bools, dev_idata);
+            cudaDeviceSynchronize();
+
+            cudaMemcpy(host_bools, bools, array_length * sizeof(int), cudaMemcpyDeviceToHost);
+            Efficient::scan(array_length, odata, host_bools, false);
+            //for (int ind = 0; ind < array_length; ind++) {
+            //    printf("%d ", host_bools[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+            cudaMemcpy(indices, odata, array_length * sizeof(int), cudaMemcpyHostToDevice);
+
+            Common::kernScatter << <fullBlocksPerGrid, blockSize >> > (array_length, dev_odata, dev_idata, bools, indices);
+            cudaDeviceSynchronize();
             timer().endGpuTimer();
-            return -1;
+            cudaMemcpy(&count, indices + array_length - 1, 1 * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, dev_odata, count * sizeof(int), cudaMemcpyDeviceToHost);
+
+            //for (int ind = 0; ind < count; ind++) {
+            //    printf("%d ", odata[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+            return count;
         }
     }
 }
