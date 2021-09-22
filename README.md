@@ -26,8 +26,8 @@ Thrust library's version of exclusive scan is also used as comparison.
 
 The performance of various implementations of scan are illustrated below.
 
-[performance_chart](!/img/performance_chart.png)
-[performance_chart_large](!/img/performance_chart_large.png)
+![performance_chart](/img/performance_chart.png)
+![performance_chart_large](/img/performance_chart_large.png)
 
 * As can be seen from the graph, starting from array size 2^15 (32768), GPU algorithms show performance advantages towards the CPU implementation, due to the advantages of parallelism.
 
