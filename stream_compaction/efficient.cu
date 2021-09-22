@@ -16,11 +16,11 @@ namespace StreamCompaction {
 
 #if USING_SHARED_MEMORY
 
-        const int blockSize_sharedMemory = 32;
+        const int blockSize_sharedMemory = 128;
 
-        constexpr int logNumBanks = 5;
+        const int logNumBanks = 5;
 
-        #define CONFLICT_FREE_OFFSET(n) ((n) >> logNumBanks);
+        #define CONFLICT_FREE_OFFSET(n) ((n) >> logNumBanks)
 
         __global__ void kernScanPerBlock(int n, int *dev_data, int *dev_blockSum) {
 
@@ -28,34 +28,35 @@ namespace StreamCompaction {
                 dev_data[0] = 0;
                 return;
             }
+            if (threadIdx.x >= n / 2) {
+                return;
+            }
             
-            __shared__ int temp[2 * blockSize_sharedMemory + (2 * blockSize_sharedMemory >> logNumBanks)];
+            __shared__ int temp[2 * blockSize_sharedMemory + CONFLICT_FREE_OFFSET(2 * blockSize_sharedMemory)];
 
-            int index = threadIdx.x;
             dev_data += blockDim.x * blockIdx.x * 2;
             if (n > blockDim.x * 2) {
                 n = blockDim.x * 2;
             }
 
-            int i = index;
-            int j = index + n / 2;
+            int i = threadIdx.x;
+            int j = threadIdx.x + n / 2;
             int ti = i + CONFLICT_FREE_OFFSET(i);
             int tj = j + CONFLICT_FREE_OFFSET(j);
-
             temp[ti] = dev_data[i];
             temp[tj] = dev_data[j];
             
             int lastElement = 0;
-            if (dev_blockSum && index == blockDim.x - 1) {
+            if (dev_blockSum && threadIdx.x == blockDim.x - 1) {
                 lastElement = temp[tj];
             }
 
             int offset = 1;
             for (int d = n >> 1; d > 0; d >>= 1) {
                 __syncthreads();
-                if (index < d) {
-                    int i = offset * (2 * index + 1) - 1;
-                    int j = offset * (2 * index + 2) - 1;
+                if (threadIdx.x < d) {
+                    int i = offset * (2 * threadIdx.x + 1) - 1;
+                    int j = offset * (2 * threadIdx.x + 2) - 1;
                     i += CONFLICT_FREE_OFFSET(i);
                     j += CONFLICT_FREE_OFFSET(j);
                     temp[j] += temp[i];
@@ -63,16 +64,16 @@ namespace StreamCompaction {
                 offset *= 2;
             }
 
-            if (index == n / 2 - 1) {
-                temp[tj] = 0;
+            if (threadIdx.x == 0) {
+                temp[n - 1 + CONFLICT_FREE_OFFSET(n - 1)] = 0;
             }
 
             for (int d = 1; d < n; d *= 2) {
                 offset >>= 1;
                 __syncthreads();
-                if (index < d) {
-                    int i = offset * (2 * index + 1) - 1;
-                    int j = offset * (2 * index + 2) - 1;
+                if (threadIdx.x < d) {
+                    int i = offset * (2 * threadIdx.x + 1) - 1;
+                    int j = offset * (2 * threadIdx.x + 2) - 1;
                     i += CONFLICT_FREE_OFFSET(i);
                     j += CONFLICT_FREE_OFFSET(j);
                     int t = temp[i];
@@ -85,7 +86,7 @@ namespace StreamCompaction {
             dev_data[i] = temp[ti];
             dev_data[j] = temp[tj];
 
-            if (dev_blockSum && index == blockDim.x - 1) {
+            if (dev_blockSum && threadIdx.x == blockDim.x - 1) {
                 dev_blockSum[blockIdx.x] = lastElement + temp[tj];
             }
         }
