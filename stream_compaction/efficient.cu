@@ -3,7 +3,7 @@
 #include "common.h"
 #include "efficient.h"
 
-#define blockSize 256
+#define blockSize 512
 //dim3 threadsPerBlock(blockSize);
 
 namespace StreamCompaction {
@@ -111,20 +111,6 @@ namespace StreamCompaction {
             array[start_ind + tx] = share_array[tx];
         }
 
-        //__global__ void kernReduction(
-        //    int array_length, int* array) {
-        //    // compute one layer of scan in parallel.
-        //    int tx = threadIdx.x;
-        //    if (tx >= array_length) {
-        //        return;
-        //    }
-        //    for (int stride = 1; stride < blockDim.x; stride *= 2) {
-        //        if (tx % (2 * stride) == (2 * stride) - 1) {
-        //            array[tx] += array[tx - stride];
-        //        }
-        //        __syncthreads();
-        //    }
-        //}
 
         __global__ void kernScanFromReduction(
             int array_length, int depth, int start_ind, int* array) {
@@ -182,23 +168,6 @@ namespace StreamCompaction {
             }
             array[tx + start_ind] += value;
         }
-
-        //__global__ void kernScanFromReduction(
-        //    int array_length, int depth, int* array) {
-        //    int tx = threadIdx.x;
-        //    if (tx >= array_length) {
-        //        return;
-        //    }
-        //    for (int depth_ind = depth-1; depth_ind >= 0; depth_ind--) {
-        //        int stride = pow(2, depth_ind);
-        //        if (tx % (2 * stride) == (2 * stride) - 1) {
-        //            int left_child = array[tx - stride];
-        //            array[tx - stride] = array[tx];
-        //            array[tx] += left_child;
-        //        }
-        //        __syncthreads();
-        //    }
-        //}
 
         void scan(int n, int* odata, const int* idata, bool timer_on) {
             int depth = ilog2ceil(n);

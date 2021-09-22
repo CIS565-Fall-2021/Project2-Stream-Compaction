@@ -27,6 +27,17 @@ namespace StreamCompaction {
             __syncthreads();
         }
 
+        //__global__ void kernAdd(
+        //    int array_length, int value_ind, int* array_static, int start_ind, int* array) {
+        //    int tx = threadIdx.x;
+        //    __shared__ int value;
+        //    value = array_static[value_ind];
+        //    if (tx >= array_length) {
+        //        return;
+        //    }
+        //    array[tx + start_ind] += value;
+        //}
+
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
@@ -41,18 +52,25 @@ namespace StreamCompaction {
                 idata = new_idata;
             }
 
+            int num_block;
+            if (array_length < blockSize) {
+                num_block = 1;
+            }
+            else {
+                num_block = array_length / blockSize;
+            }
+
             dim3 fullBlocksPerGrid((array_length + blockSize - 1) / blockSize);
             cudaMalloc((void**)&dev_array, array_length * sizeof(int));
             cudaMemcpy(dev_array + 1, idata, (array_length - 1) * sizeof(int), cudaMemcpyHostToDevice);
             cudaMemset(dev_array, 0, sizeof(int));
 
             timer().startGpuTimer();
-
             for (int depth_ind = 1; depth_ind <= depth; depth_ind++) {
                 int stride = pow(2, depth_ind - 1);
                 kernScanLayer << <fullBlocksPerGrid, blockSize >> > (array_length, stride, dev_array);
-                
             }
+            cudaDeviceSynchronize();
 
             timer().endGpuTimer();
             cudaMemcpy(odata, dev_array, n * sizeof(int), cudaMemcpyDeviceToHost);
