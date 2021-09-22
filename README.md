@@ -85,7 +85,7 @@ Scan and stream compaction is also implemented using thrust library. However, th
 ### Sample Test Result
 
 Sample performance test result of input array size of 2^8 with blockSize of 128:
-![](img/raw_array_size_2_8.PNG)
+![](img/raw_array_size_2_8.png)
 
 ### Feedback
 Any feedback on errors in the above analysis or any other places is appreciated.
