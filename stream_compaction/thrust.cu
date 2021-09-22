@@ -29,5 +29,17 @@ namespace StreamCompaction {
             thrust::copy(dev_odata.begin(), dev_odata.end(), odata);
 
         }
+
+        void sort(int n, int *odata, const int *idata) {
+
+            std::cout << std::endl;
+            thrust::copy(idata, idata + n, odata);
+
+            timer().startGpuTimer();
+            thrust::sort(odata, odata+n);
+            
+            timer().endGpuTimer();
+
+        }
     }
 }

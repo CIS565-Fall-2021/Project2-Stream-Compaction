@@ -4,7 +4,7 @@
 #include "naive.h"
 
 #ifndef BLOCKSIZE
-#define BLOCKSIZE 256
+#define BLOCKSIZE 512
 #endif // !BLOCKSIZE
 
 #include <iostream>

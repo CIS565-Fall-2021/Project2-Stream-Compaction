@@ -4,13 +4,16 @@ CUDA Stream Compaction
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2**
 
 * Matt Elser
-  * [LinkedIn](https://www.linkedin.com/in/matt-elser-97b8151ba/), [twitter](twitter.com/__mattelser__ )
+  * [LinkedIn](https://www.linkedin.com/in/matt-elser-97b8151ba/), [twitter](twitter.com/__mattelser__)
 * Tested on: Tested on: Ubuntu 20.04, i3-10100F @ 3.6GHz 16GB, GeForce 1660 Super 6GB
 
 ### Main Features
 This project implements an exclusive scan (performing an operation on (in this case a sum of) all previous 
 elements along an array) and stream compaction (removing elements from an array based on a condition) using 
 the CPU, GPU with CUDA, and the CUDA powered library `Thrust`. 
+- all required algorithms work
+- Efficient scan and compaction are faster than CPU implementation for arrays of sufficient size
+- Radix sort has been implemented (without tiling or bitonic merge)
 
 ### Time Comparison
 The test setup in `main.cpp` has been coopted to set up repeated timings to remove noise from measurements.
@@ -41,3 +44,8 @@ be noise.
   given layer are reading/writing from/to any of the indices being read/written from/to by any other thread. Since 
   All layers are separate kernel calls (on the default stream and therefore with an implicit join/sync), so no 
   explicit syncs are needed. 
+- Radix sort has been implemented, though without tiling or bitonic merge. It sorts correctly for all array sizes (power of two 
+  and non-power of two) up until 2^27, at which point the test machine runs out of memory. Radix sorting has been 
+  validated against `Thrust`'s sort (though the timing of the two are different by several orders of magnitude). 
+  The algorithm has not been optimized to use shared memory or contiguous memory reads, and would fail for arrays with
+  negative values. 
