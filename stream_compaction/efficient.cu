@@ -3,6 +3,9 @@
 #include "common.h"
 #include "efficient.h"
 #include <iostream>
+#include <cassert>
+
+#define SECTION_SIZE 1024
 
 namespace StreamCompaction {
     namespace Efficient {
@@ -30,264 +33,256 @@ namespace StreamCompaction {
             }
         }
 
-        __device__ void reductionStep(int *XY)
+        // lanuch this kernel with SECTION_SIZE / 2 threads in a block
+        __global__ void kernBrentKungScan(const int* X, int* Y, int* S, int inputSize)
         {
+            __shared__ int XY[SECTION_SIZE];
+            // 2 * here responsible for handling multiple blocks 
+            // now you only consider one block
+            int i = 2 * blockIdx.x * blockDim.x + threadIdx.x;
+            if (i < inputSize)
+            {
+                XY[threadIdx.x] = X[i];
+            }
+            else {
+                XY[threadIdx.x] = 0;
+            }
+            if ((i + blockDim.x) < inputSize)
+            {
+                XY[threadIdx.x + blockDim.x] = X[i + blockDim.x];
+            }
+            else {
+                XY[threadIdx.x + blockDim.x] = 0;
+            }
+
+            // note here we have stride <= blockDim.x
             for (unsigned int stride = 1; stride <= blockDim.x; stride *= 2)
             {
-                // make sure that input is in place
                 __syncthreads();
-                int index = (threadIdx.x + 1) * stride * 2 - 1;
-                if (index < sectionSize)
+                int index = (threadIdx.x + 1) * 2 * stride - 1;
+                if (index < SECTION_SIZE)
                 {
                     XY[index] += XY[index - stride];
                 }
             }
-        }
 
-        __device__ void postScanStep(int* XY)
-        {
-            for (unsigned int stride = sectionSize / 4; stride > 0; stride /= 2)
+            for (int stride = SECTION_SIZE / 4; stride > 0; stride /= 2)
             {
-                // make sure that input is in place
                 __syncthreads();
-                int index = (threadIdx.x + 1) * stride * 2 - 1;
-                if ((index + stride) < sectionSize)
+                int index = (threadIdx.x + 1) * 2 * stride - 1;
+                if ((index + stride) < SECTION_SIZE)
                 {
                     XY[index + stride] += XY[index];
                 }
             }
-        }
 
-        __device__ void computeScanToOutputArray(const int* inputArray, int* outputArray,
-            int* XY, int inputSize)
-        {
-            int i = 2 * blockIdx.x * blockDim.x + threadIdx.x;
-            // each thread loads two input elements into the shared memory
-            if (i < inputSize)
-            {
-                XY[threadIdx.x] = inputArray[i];
-            }
-            if (i + blockDim.x < inputSize)
-            {
-                XY[threadIdx.x + blockDim.x] = inputArray[i + blockDim.x];
-            }
-            reductionStep(XY);
-            postScanStep(XY);
-            // each thread write two elements into the output array
             __syncthreads();
             if (i < inputSize)
             {
-                outputArray[i] = XY[threadIdx.x];
+                Y[i] = XY[threadIdx.x];
             }
-            if (i + blockDim.x < inputSize)
+            else {
+                Y[i] = 0;
+            }
+            if ((i + blockDim.x) < inputSize)
             {
-                outputArray[i + blockDim.x] = XY[threadIdx.x + blockDim.x];
+                Y[i + blockDim.x] = XY[threadIdx.x + blockDim.x];
             }
-        }
-
-        __global__ void kernWorkEfficientGPUScanFirstStep(const int* inputArray,
-            int* outputArray, int* SumArray, int inputSize)
-        {
-            __shared__ int XY[sectionSize];
-            computeScanToOutputArray(inputArray, outputArray, XY, inputSize);
+            else {
+                Y[i + blockDim.x] = 0;
+            }
 
             // the last thread in the block should write the output value of 
-            // the last XY element in the block to the blockIdx.x position of 
-            // SumArray
+             // the last XY element in the block to the blockIdx.x position of 
+             // SumArray
 
-            // make sure XY[sectionSize - 1] has the correct partial sum
+             // make sure XY[sectionSize - 1] has the correct partial sum
             __syncthreads();
             if (threadIdx.x == blockDim.x - 1)
             {
-                SumArray[blockIdx.x] = XY[sectionSize - 1];
+                S[blockIdx.x] = XY[SECTION_SIZE - 1];
             }
         }
 
-        __global__ void kernWorkEfficientGPUScanSecondStep(const int* inputArray,
-            int* outputArray, int inputSize)
+        __global__ void kernBrentKungScan(const int* X, int* Y, int inputSize)
         {
-            __shared__ int XY[sectionSize];
-            computeScanToOutputArray(inputArray, outputArray, XY, inputSize);
+            __shared__ int XY[SECTION_SIZE];
+            // 2 * here responsible for handling multiple blocks 
+            // now you only consider one block
+            int i = 2 * blockIdx.x * blockDim.x + threadIdx.x;
+            if (i < inputSize)
+            {
+                XY[threadIdx.x] = X[i];
+            }
+            else {
+                XY[threadIdx.x] = 0;
+            }
+            if ((i + blockDim.x) < inputSize)
+            {
+                XY[threadIdx.x + blockDim.x] = X[i + blockDim.x];
+            }
+            else {
+                XY[threadIdx.x + blockDim.x] = 0;
+            }
+
+            // note here we have stride <= blockDim.x
+            for (unsigned int stride = 1; stride <= blockDim.x; stride *= 2)
+            {
+                __syncthreads();
+                int index = (threadIdx.x + 1) * 2 * stride - 1;
+                if (index < SECTION_SIZE)
+                {
+                    XY[index] += XY[index - stride];
+                }
+            }
+
+            for (int stride = SECTION_SIZE / 4; stride > 0; stride /= 2)
+            {
+                __syncthreads();
+                int index = (threadIdx.x + 1) * 2 * stride - 1;
+                if ((index + stride) < SECTION_SIZE)
+                {
+                    XY[index + stride] += XY[index];
+                }
+            }
+
+            __syncthreads();
+            if (i < inputSize)
+            {
+                Y[i] = XY[threadIdx.x];
+            }
+            else {
+                Y[i] = 0;
+            }
+            if ((i + blockDim.x) < inputSize)
+            {
+                Y[i + blockDim.x] = XY[threadIdx.x + blockDim.x];
+            }
+            else {
+                Y[i + blockDim.x] = 0;
+            }
         }
 
-
-        __global__ void kernWorkEfficientGPUScanThirdStep(const int* inputArray,
-            int* outputArray, int inputSize)
+        __global__ void kernBrentKungScanAddUpSumArray(const int* S,
+            int* Y, int inputSize)
         {
             int i = blockIdx.x * blockDim.x + threadIdx.x;
             if (i < inputSize && blockIdx.x > 0)
             {
-                outputArray[i] += inputArray[blockIdx.x - 1];
+                Y[i] += S[blockIdx.x - 1];
             }
-        }
-
-        void scanWithoutTimer(int n, int* odata, const int* idata) {
-            int size = n * sizeof(int);
-            int sumArrayNumEle = (n + blockSize - 1) / blockSize;
-            int sumArraySize = sumArrayNumEle * sizeof(int);
-
-            int* d_InputData;
-            int* d_OutputData;
-            int* d_OutputExclusiveData;
-            int* d_SumArray;
-            int* d_SumArrayOutput;
-
-            cudaMalloc((void**)&d_InputData, size);
-            checkCUDAError("cudaMalloc d_InputData failed!");
-
-            cudaMalloc((void**)&d_OutputData, size);
-            checkCUDAError("cudaMalloc d_OutputData failed!");
-
-            cudaMalloc((void**)&d_OutputExclusiveData, size);
-            checkCUDAError("cudaMalloc d_OutputExclusiveData failed!");
-
-            cudaMalloc((void**)&d_SumArray, sumArraySize);
-            checkCUDAError("cudaMalloc d_SumArray failed!");
-
-            cudaMalloc((void**)&d_SumArrayOutput, sumArraySize);
-            checkCUDAError("cudaMalloc d_SumArrayOutput failed!");
-
-            cudaMemcpy(d_InputData, idata, size, cudaMemcpyHostToDevice);
-
-            // Only need to launch a kernel with (blockSize / 2) in a block
-            // b/c each thread loads/stores two elements
-            dim3 dimGridArrayEfficient((n + (blockSize / 2) - 1) / (blockSize / 2), 1, 1);
-            dim3 dimBlockArrayEfficient((blockSize / 2), 1, 1);
-
-            dim3 dimGridSumArray((sumArrayNumEle + (blockSize / 2) - 1) / (blockSize / 2), 1, 1);
-            dim3 dimBlockSumArray((blockSize / 2), 1, 1);
-
-            dim3 dimGridArray((n + blockSize - 1) / blockSize, 1, 1);
-            dim3 dimBlockArray(blockSize, 1, 1);
-
-            // timer().startGpuTimer();
-
-            // First step: compute the scan result for individual sections
-            // then, store their block sum to sumArray
-            kernWorkEfficientGPUScanFirstStep << <dimGridArrayEfficient,
-                dimBlockArrayEfficient >> > (d_InputData, d_OutputData,
-                    d_SumArray, n);
-            checkCUDAError("kernNaiveGPUScanFirstStep failed!");
-
-            // cudaDeviceSynchronize();
-
-            // Second step: scan block sums
-            kernWorkEfficientGPUScanSecondStep << <dimGridSumArray, dimBlockSumArray >> > (
-                d_SumArray, d_SumArrayOutput, sumArrayNumEle);
-            checkCUDAError("kernNaiveGPUScanSecondStep failed!");
-
-            // cudaDeviceSynchronize();
-
-            // Third step: add scanned block sum i to all values of scanned block
-            // i + 1
-            kernWorkEfficientGPUScanThirdStep << <dimGridArray, dimBlockArray >> > (
-                d_SumArrayOutput, d_OutputData, n);
-            checkCUDAError("kernNaiveGPUScanThirdStep failed!");
-
-            // cudaDeviceSynchronize();
-
-            // Last step:
-            convertFromInclusiveToExclusive << <dimGridArray, dimBlockArray >> > (
-                d_OutputData, d_OutputExclusiveData, n);
-            checkCUDAError("convertFromInclusiveToExclusive failed!");
-            // timer().endGpuTimer();
-
-            cudaMemcpy(odata, d_OutputExclusiveData, size, cudaMemcpyDeviceToHost);
-            checkCUDAError("memCpy back failed!");
-
-            // cleanup
-            cudaFree(d_InputData);
-            cudaFree(d_OutputData);
-            cudaFree(d_OutputExclusiveData);
-            cudaFree(d_SumArray);
-            cudaFree(d_SumArrayOutput);
-            checkCUDAError("cudaFree failed!");
         }
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
-            int size = n * sizeof(int);
-            int sumArrayNumEle = (n + blockSize - 1) / blockSize;
-            int sumArraySize = sumArrayNumEle * sizeof(int);
+            // n could be larger than SECTION_SIZE
+            int idataSizeBytes = n * sizeof(int);
+            int sumArraySizeBytes = (n / SECTION_SIZE) * sizeof(int);
 
-            int* d_InputData;
-            int* d_OutputData;
-            int* d_OutputExclusiveData;
-            int* d_SumArray;
-            int* d_SumArrayOutput;
+            // MaxThreadsPerBlock: 1024. However, SECTION_SIZE / 2 is needed
+            // for kernBrentKungScan
+            assert(SECTION_SIZE <= 1024);
+            assert(n <= 524288);
 
-            cudaMalloc((void**)&d_InputData, size);
-            checkCUDAError("cudaMalloc d_InputData failed!");
+            dim3 dimGridBrent((n + (SECTION_SIZE / 2) - 1) / (SECTION_SIZE / 2), 1, 1);
+            dim3 dimBlockBrent(SECTION_SIZE / 2, 1, 1);
 
-            cudaMalloc((void**)&d_OutputData, size);
-            checkCUDAError("cudaMalloc d_OutputData failed!");
+            dim3 dimGridBrentSumArray(1, 1, 1);
+            dim3 dimBlockBrentSumArray(SECTION_SIZE / 2, 1, 1);
 
-            cudaMalloc((void**)&d_OutputExclusiveData, size);
-            checkCUDAError("cudaMalloc d_OutputExclusiveData failed!");
+            dim3 dimGridArray((n + SECTION_SIZE - 1) / SECTION_SIZE, 1, 1);
+            dim3 dimBlockArray(SECTION_SIZE, 1, 1);
 
-            cudaMalloc((void**)&d_SumArray, sumArraySize);
-            checkCUDAError("cudaMalloc d_SumArray failed!");
+            int* d_X;
+            int* d_Y;
+            int* d_S;
+            int* d_SOut;
+            int* d_YExclusive;
+            cudaMalloc((void**)&d_X, idataSizeBytes);
+            checkCUDAError("cudaMalloc d_X failed!");
+            cudaMalloc((void**)&d_Y, idataSizeBytes);
+            checkCUDAError("cudaMalloc d_Y failed!");
+            cudaMalloc((void**)&d_YExclusive, idataSizeBytes);
+            checkCUDAError("cudaMalloc d_YExclusive failed!");
+            cudaMalloc((void**)&d_S, sumArraySizeBytes);
+            checkCUDAError("cudaMalloc d_S failed!");
+            cudaMalloc((void**)&d_SOut, sumArraySizeBytes);
+            checkCUDAError("cudaMalloc d_SOut failed!");
 
-            cudaMalloc((void**)&d_SumArrayOutput, sumArraySize);
-            checkCUDAError("cudaMalloc d_SumArrayOutput failed!");
-
-            cudaMemcpy(d_InputData, idata, size, cudaMemcpyHostToDevice);
-
-            // Only need to launch a kernel with (blockSize / 2) in a block
-            // b/c each thread loads/stores two elements
-            dim3 dimGridArrayEfficient((n + (blockSize / 2) - 1) / (blockSize / 2), 1, 1);
-            dim3 dimBlockArrayEfficient((blockSize / 2), 1, 1);
-
-            dim3 dimGridSumArray((sumArrayNumEle + (blockSize / 2) - 1) / (blockSize / 2), 1, 1);
-            dim3 dimBlockSumArray((blockSize / 2), 1, 1);
-
-            dim3 dimGridArray((n + blockSize - 1) / blockSize, 1, 1);
-            dim3 dimBlockArray(blockSize, 1, 1);
+            cudaMemcpy(d_X, idata, idataSizeBytes, cudaMemcpyHostToDevice);
 
             timer().startGpuTimer();
-
-            // First step: compute the scan result for individual sections
-            // then, store their block sum to sumArray
-            kernWorkEfficientGPUScanFirstStep <<<dimGridArrayEfficient, 
-                dimBlockArrayEfficient >> > (d_InputData, d_OutputData, 
-                    d_SumArray, n);
-            checkCUDAError("kernNaiveGPUScanFirstStep failed!");
-
-            // cudaDeviceSynchronize();
-
-            // Second step: scan block sums
-            kernWorkEfficientGPUScanSecondStep << <dimGridSumArray, dimBlockSumArray >>> (
-                d_SumArray, d_SumArrayOutput, sumArrayNumEle);
-            checkCUDAError("kernNaiveGPUScanSecondStep failed!");
-
-            // cudaDeviceSynchronize();
-
-            // Third step: add scanned block sum i to all values of scanned block
-            // i + 1
-            kernWorkEfficientGPUScanThirdStep << <dimGridArray, dimBlockArray >>> (
-                d_SumArrayOutput, d_OutputData, n);
-            checkCUDAError("kernNaiveGPUScanThirdStep failed!");
-
-            // cudaDeviceSynchronize();
-
-            // Last step:
-            convertFromInclusiveToExclusive <<<dimGridArray, dimBlockArray >>> (
-                d_OutputData, d_OutputExclusiveData, n);
-            checkCUDAError("convertFromInclusiveToExclusive failed!");
+            kernBrentKungScan << <dimGridBrent, dimBlockBrent >> > (d_X, d_Y, d_S, n);
+            kernBrentKungScan << <dimGridBrentSumArray, dimBlockBrentSumArray >> > (d_S, d_SOut, n);
+            kernBrentKungScanAddUpSumArray << <dimGridArray, dimBlockArray >> > (d_SOut, d_Y, n);
+            convertFromInclusiveToExclusive << <dimGridArray, dimBlockArray >> > (d_Y, d_YExclusive, n);
             timer().endGpuTimer();
 
-            cudaMemcpy(odata, d_OutputExclusiveData, size, cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, d_YExclusive, idataSizeBytes, cudaMemcpyDeviceToHost);
             checkCUDAError("memCpy back failed!");
 
-            // cleanup
-            cudaFree(d_InputData);
-            cudaFree(d_OutputData);
-            cudaFree(d_OutputExclusiveData);
-            cudaFree(d_SumArray);
-            cudaFree(d_SumArrayOutput);
+            cudaFree(d_X);
+            cudaFree(d_Y);
+            cudaFree(d_S);
+            cudaFree(d_SOut);
+            cudaFree(d_YExclusive);
             checkCUDAError("cudaFree failed!");
         }
+
+        void scanWithoutTimer(int n, int* odata, const int* idata) {
+            // n could be larger than SECTION_SIZE
+            int idataSizeBytes = n * sizeof(int);
+            int sumArraySizeBytes = (n / SECTION_SIZE) * sizeof(int);
+
+            // MaxThreadsPerBlock: 1024. However, SECTION_SIZE / 2 is needed
+            // for kernBrentKungScan
+            assert(SECTION_SIZE <= 1024);
+            assert(n <= 524288);
+
+            dim3 dimGridBrent((n + (SECTION_SIZE / 2) - 1) / (SECTION_SIZE / 2), 1, 1);
+            dim3 dimBlockBrent(SECTION_SIZE / 2, 1, 1);
+
+            dim3 dimGridBrentSumArray(1, 1, 1);
+            dim3 dimBlockBrentSumArray(SECTION_SIZE / 2, 1, 1);
+
+            dim3 dimGridArray((n + SECTION_SIZE - 1) / SECTION_SIZE, 1, 1);
+            dim3 dimBlockArray(SECTION_SIZE, 1, 1);
+
+            int* d_X;
+            int* d_Y;
+            int* d_S;
+            int* d_SOut;
+            int* d_YExclusive;
+            cudaMalloc((void**)&d_X, idataSizeBytes);
+            checkCUDAError("cudaMalloc d_X failed!");
+            cudaMalloc((void**)&d_Y, idataSizeBytes);
+            checkCUDAError("cudaMalloc d_Y failed!");
+            cudaMalloc((void**)&d_YExclusive, idataSizeBytes);
+            checkCUDAError("cudaMalloc d_YExclusive failed!");
+            cudaMalloc((void**)&d_S, sumArraySizeBytes);
+            checkCUDAError("cudaMalloc d_S failed!");
+            cudaMalloc((void**)&d_SOut, sumArraySizeBytes);
+            checkCUDAError("cudaMalloc d_SOut failed!");
+
+            cudaMemcpy(d_X, idata, idataSizeBytes, cudaMemcpyHostToDevice);
+
+            kernBrentKungScan << <dimGridBrent, dimBlockBrent >> > (d_X, d_Y, d_S, n);
+            kernBrentKungScan << <dimGridBrentSumArray, dimBlockBrentSumArray >> > (d_S, d_SOut, n);
+            kernBrentKungScanAddUpSumArray << <dimGridArray, dimBlockArray >> > (d_SOut, d_Y, n);
+            convertFromInclusiveToExclusive << <dimGridArray, dimBlockArray >> > (d_Y, d_YExclusive, n);
+
+            cudaMemcpy(odata, d_YExclusive, idataSizeBytes, cudaMemcpyDeviceToHost);
+            checkCUDAError("memCpy back failed!");
+
+            cudaFree(d_X);
+            cudaFree(d_Y);
+            cudaFree(d_S);
+            cudaFree(d_SOut);
+            cudaFree(d_YExclusive);
+            checkCUDAError("cudaFree failed!");
+        }
+
 
         /**
          * Performs stream compaction on idata, storing the result into odata.

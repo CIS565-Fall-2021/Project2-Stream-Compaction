@@ -6,7 +6,7 @@
 #include <iostream> // testing 
 #include <cassert> // for assert()
 
-
+#define SECTION_SIZE 1024
 
 namespace StreamCompaction {
     namespace Naive {
@@ -16,7 +16,6 @@ namespace StreamCompaction {
             static PerformanceTimer timer;
             return timer;
         }
-
         __global__ void convertFromInclusiveToExclusive(const int* inputArray,
             int* outputArray, int inputSize)
         {
@@ -26,7 +25,7 @@ namespace StreamCompaction {
             // element and out-of-bound elements with 0. 
             if (i < inputSize && i != 0)
             {
-        
+
                 outputArray[i] = inputArray[i - 1];
             }
             else {
@@ -34,200 +33,150 @@ namespace StreamCompaction {
             }
         }
 
-        __device__ void computeScanToOutputArray(const int* inputArray, int* outputArray,
-            int* XY, int inputSize)
+        __global__ void kernKoggeStoneScanAddUpSumArray(const int* S,
+            int* Y, int inputSize)
         {
+            int i = blockIdx.x * blockDim.x + threadIdx.x;
+            if (i < inputSize && blockIdx.x > 0)
+            {
+                Y[i] += S[blockIdx.x - 1];
+            }
+        }
+
+        __global__ void kernKoggeStoneScan(int* X, int* Y, int* S, int inputSize)
+        {
+            __shared__ int XY[SECTION_SIZE];
             int i = blockIdx.x * blockDim.x + threadIdx.x;
             if (i < inputSize)
             {
-                XY[threadIdx.x] = inputArray[i];
+                XY[threadIdx.x] = X[i];
             }
             else {
                 XY[threadIdx.x] = 0;
             }
-            // perform naive scan
+            // performs iterative scan on XY
+            // note that it is stride < blockDim.x, not stride <= blockDim.x: 
+            // if you have 16 elements, stride could only be 1,2,4,8
             for (unsigned int stride = 1; stride < blockDim.x; stride *= 2)
             {
                 // make sure that input is in place
                 __syncthreads();
-                int previousValue = 0;
-                int previousIndex = threadIdx.x - stride;
-                if (previousIndex >= 0)
+                bool written = false;
+                int temp = 0;
+                if (threadIdx.x >= stride)
                 {
-                    previousValue = XY[previousIndex];
+                    temp = XY[threadIdx.x] + XY[threadIdx.x - stride];
+                    written = true;
                 }
-                int temp = XY[threadIdx.x] + previousValue;
                 // make sure previous output has been consumed
                 __syncthreads();
-                XY[threadIdx.x] = temp;
+                if (written)
+                {
+                    XY[threadIdx.x] = temp;
+                }
             }
-
-            // each thread writes its result into the output array
-            outputArray[i] = XY[threadIdx.x];
-        }
-        
-        __global__ void kernNaiveGPUScanFirstStep(const int* inputArray, 
-            int* outputArray, int* SumArray, int inputSize)
-        {
-            // Each thread loads one value from the input array into shared 
-            // memory array XY
-            __shared__ int XY[sectionSize];
-            computeScanToOutputArray(inputArray, outputArray, XY, inputSize);
+            Y[i] = XY[threadIdx.x];
 
             // the last thread in the block should write the output value of 
             // the last XY element in the block to the blockIdx.x position of 
             // SumArray
 
             // make sure XY[sectionSize - 1] has the correct partial sum
-            __syncthreads(); 
+            __syncthreads();
             if (threadIdx.x == blockDim.x - 1)
             {
-                SumArray[blockIdx.x] = XY[sectionSize - 1];
+                S[blockIdx.x] = XY[SECTION_SIZE - 1];
             }
         }
-
-        __global__ void kernNaiveGPUScanSecondStep(const int* inputArray, 
-            int* outputArray, int inputSize)
+        __global__ void kernKoggeStoneScan(int* X, int* Y, int inputSize)
         {
-            // Each thread loads one value from the input array into shared 
-            // memory array XY
-            __shared__ int XY[MAX_SUM_ARRAY_SIZE];
-            computeScanToOutputArray(inputArray, outputArray, XY, inputSize);
-        }
-
-        __global__ void kernNaiveGPUScanThirdStep(const int* inputArray, 
-            int* outputArray, int inputSize)
-        {
+            __shared__ int XY[SECTION_SIZE];
             int i = blockIdx.x * blockDim.x + threadIdx.x;
-            if (i < inputSize && blockIdx.x > 0)
+            if (i < inputSize)
             {
-                outputArray[i] += inputArray[blockIdx.x - 1];
+                XY[threadIdx.x] = X[i];
             }
+            else {
+                XY[threadIdx.x] = 0;
+            }
+            // performs iterative scan on XY
+            // note that it is stride < blockDim.x, not stride <= blockDim.x: 
+            // if you have 16 elements, stride could only be 1,2,4,8
+            for (unsigned int stride = 1; stride < blockDim.x; stride *= 2)
+            {
+                // make sure that input is in place
+                __syncthreads();
+                bool written = false;
+                int temp = 0;
+                if (threadIdx.x >= stride)
+                {
+                    temp = XY[threadIdx.x] + XY[threadIdx.x - stride];
+                    written = true;
+                }
+                // make sure previous output has been consumed
+                __syncthreads();
+                if (written)
+                {
+                    XY[threadIdx.x] = temp;
+                }
+            }
+            Y[i] = XY[threadIdx.x];
         }
 
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
-            int size = n * sizeof(int);
-            int sumArrayNumEle = (n + blockSize - 1) / blockSize;
-            assert(sumArrayNumEle <= 1024 && "Sum Array has more than 1024 elements!");
-            int sumArraySize = sumArrayNumEle * sizeof(int);
+            // n could be larger than SECTION_SIZE
+            int idataSizeBytes = n * sizeof(int);
 
-            int* d_InputData;
-            int* d_OutputData;
-            int* d_OutputExclusiveData;
-            int* d_SumArray;
-            int* d_SumArrayOutput;
-            int* d_SumArrayAx;
+            int sumArraySizeBytes = (n / SECTION_SIZE) * sizeof(int);
 
-            cudaMalloc((void**)&d_InputData, size);
-            checkCUDAError("cudaMalloc d_InputData failed!");
+            // MaxThreadsPerBlock: 1024
+            assert(SECTION_SIZE <= 1024);
+            assert(n <= 1048576); // 2^20
 
-            cudaMalloc((void**)&d_OutputData, size);
-            checkCUDAError("cudaMalloc d_OutputData failed!");
+            dim3 dimGridKogge((n + SECTION_SIZE - 1) / SECTION_SIZE, 1, 1);
+            dim3 dimBlockKogge(SECTION_SIZE, 1, 1);
 
-            cudaMalloc((void**)&d_OutputExclusiveData, size);
-            checkCUDAError("cudaMalloc d_OutputExclusiveData failed!");
+            dim3 dimGridKoggeSumArray(1, 1, 1);
+            dim3 dimBlockKoggeSumArray(SECTION_SIZE, 1, 1);
 
-            cudaMalloc((void**)&d_SumArray, sumArraySize);
-            checkCUDAError("cudaMalloc d_SumArray failed!");
+            int* d_X;
+            int* d_Y;
+            int* d_S;
+            int* d_SOut;
+            int* d_YExclusive;
+            cudaMalloc((void**)&d_X, idataSizeBytes);
+            checkCUDAError("cudaMalloc d_X failed!");
+            cudaMalloc((void**)&d_Y, idataSizeBytes);
+            checkCUDAError("cudaMalloc d_Y failed!");
+            cudaMalloc((void**)&d_YExclusive, idataSizeBytes);
+            checkCUDAError("cudaMalloc d_YExclusive failed!");
+            cudaMalloc((void**)&d_S, sumArraySizeBytes);
+            checkCUDAError("cudaMalloc d_S failed!");
+            cudaMalloc((void**)&d_SOut, sumArraySizeBytes);
+            checkCUDAError("cudaMalloc d_SOut failed!");
 
-            cudaMalloc((void**)&d_SumArrayOutput, sumArraySize);
-            checkCUDAError("cudaMalloc d_SumArrayOutput failed!");
-
-            cudaMalloc((void**)&d_SumArrayAx, sumArraySize);
-            checkCUDAError("cudaMalloc d_SumArrayOutput failed!");
-
-            cudaMemcpy(d_InputData, idata, size, cudaMemcpyHostToDevice);
-
-            dim3 dimGridArray((n + blockSize - 1) / blockSize, 1, 1);
-            dim3 dimBlockArray(blockSize, 1, 1);
-
-            
-            dim3 dimGridSumArray(1, 1, 1);
-            dim3 dimBlockSumArray(sumArrayNumEle, 1, 1);
-
-            // for testing
-            int* sumArray = new int[sumArrayNumEle];
-            int* sumArrayOutput = new int[sumArrayNumEle];
+            cudaMemcpy(d_X, idata, idataSizeBytes, cudaMemcpyHostToDevice);
 
             timer().startGpuTimer();
-            // First step: compute the scan result for individual sections
-            // then, store their block sum to sumArray
-            kernNaiveGPUScanFirstStep << <dimGridArray, dimBlockArray >> > (d_InputData,
-                d_OutputData, d_SumArray, n);
-            checkCUDAError("kernNaiveGPUScanFirstStep failed!");
-#if 0
-            cudaDeviceSynchronize();
-            cudaMemcpy(odata, d_OutputData, size, cudaMemcpyDeviceToHost);
-            checkCUDAError("memCpy back failed!");
-
-            cudaMemcpy(sumArray, d_SumArray, sumArraySize, cudaMemcpyDeviceToHost);
-            checkCUDAError("memCpy back failed!");
-
-            std::cout << '\n';
-            for (int i = 0; i < n; i++)
-            {
-                std::cout << odata[i] << ' ';
-                if ((i + 1) % 8 == 0) {
-                    std::cout << std::endl;
-                }
-            }
-
-            std::cout << '\n';
-            for (int i = 0; i < sumArrayNumEle; i++)
-            {
-                std::cout << sumArray[i] << ' ';
-            }
-
-            std::cout << '\n';
-#endif
-            // Second step: scan block sums
-            kernNaiveGPUScanSecondStep << <dimGridSumArray, dimBlockSumArray >> > (
-                d_SumArray, d_SumArrayOutput, sumArrayNumEle);
-            checkCUDAError("kernNaiveGPUScanSecondStep failed!");
-#if 0
-
-            cudaMemcpy(sumArrayOutput, d_SumArrayOutput, sumArraySize,
-                cudaMemcpyDeviceToHost);
-            checkCUDAError("memCpy back failed!");
-
-            printf("\n");
-
-            for (int i = 0; i < sumArrayNumEle; i++)
-            {
-                std::cout << sumArrayOutput[i] << ' ';
-            }
-
-            printf("\n");
-
-#endif
-            // Third step: add scanned block sum i to all values of scanned block
-            // i + 1
-            kernNaiveGPUScanThirdStep << <dimGridArray, dimBlockArray >> > (
-                d_SumArrayOutput, d_OutputData, n);
-            checkCUDAError("kernNaiveGPUScanThirdStep failed!");
-
-           // cudaDeviceSynchronize();
-
-            // Last step:
-
-            convertFromInclusiveToExclusive << <dimGridArray, dimBlockArray >> > (
-                d_OutputData, d_OutputExclusiveData, n);
-            checkCUDAError("convertFromInclusiveToExclusive failed!");
-
+            kernKoggeStoneScan <<<dimGridKogge, dimBlockKogge >>> (d_X, d_Y, d_S, n);
+            kernKoggeStoneScan <<<dimGridKoggeSumArray, dimBlockKoggeSumArray >>> (d_S, d_SOut, n);
+            kernKoggeStoneScanAddUpSumArray <<<dimGridKogge, dimBlockKogge >>> (
+                d_SOut, d_Y, n);
+            convertFromInclusiveToExclusive << <dimGridKogge, dimBlockKogge >> > (
+                d_Y, d_YExclusive, n);
             timer().endGpuTimer();
 
-            cudaMemcpy(odata, d_OutputExclusiveData, size, cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, d_YExclusive, idataSizeBytes, cudaMemcpyDeviceToHost);
             checkCUDAError("memCpy back failed!");
 
-            // cleanup
-            cudaFree(d_InputData);
-            cudaFree(d_OutputData);
-            cudaFree(d_OutputExclusiveData);
-            cudaFree(d_SumArray);
-            cudaFree(d_SumArrayOutput);
+            cudaFree(d_X);
+            cudaFree(d_Y);
+            cudaFree(d_S);
+            cudaFree(d_SOut);
+            cudaFree(d_YExclusive);
             checkCUDAError("cudaFree failed!");
         }
     }

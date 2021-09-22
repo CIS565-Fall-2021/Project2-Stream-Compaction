@@ -14,7 +14,24 @@ namespace StreamCompaction {
             return timer;
         }
 
-        void scanWithoutTimer(int n, int* odata, const int* idata) {
+        /**
+         * A work-efficient CPU inclusive scan.
+         */
+        void sequentialInclusiveScan(int n, int* odata, const int* idata)
+        {
+            int accumulator = idata[0];
+            odata[0] = accumulator;
+            for (int i = 1; i < n; i++)
+            {
+                accumulator += idata[i];
+                odata[i] = accumulator;
+            }
+        }
+
+        /**
+         * A work-efficient CPU exclusive scan.
+         */
+        void sequentialExclusiveScan(int n, int* odata, const int* idata) {
             odata[0] = 0;
             for (int j = 1; j < n; j++)
             {
@@ -29,7 +46,7 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            scanWithoutTimer(n, odata, idata);
+            sequentialExclusiveScan(n, odata, idata);
             timer().endCpuTimer();
         }
 
@@ -90,7 +107,7 @@ namespace StreamCompaction {
             }
 
             // STEP 2: Run exclusive scan on tempArray
-            scanWithoutTimer(n, scanResult.get(), tempArray.get());
+            sequentialExclusiveScan(n, scanResult.get(), tempArray.get());
 
             // STEP 3: scatter
             for (int i = 0; i < n; i++)

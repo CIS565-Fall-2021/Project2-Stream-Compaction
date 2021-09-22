@@ -168,4 +168,6 @@ CUDA error (d:\dev\565\project2-stream-compaction\stream_compaction\naive.cu:84)
   - Why is Naive GPU slower than CPU ?
     - Naive GPU has control divergence in the first warp. Performance hit is worse for smaller block size.
     - Naive GPU is not work-efficient. Naive GPU has NlogN - (N - 1), whereas CPU has only (N - 1)
+  - Why is GPU Efficient quicker? 
+    - reduction step takes N - 1 operations, distribution phase takes N operations. Overall, it is a work-efficient algorithm. 
 

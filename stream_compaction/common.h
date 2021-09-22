@@ -10,11 +10,13 @@
 #include <chrono>
 #include <stdexcept>
 
+#if 0
 /*! Block size used for CUDA kernel launch. */
 #define blockSize 512
 #define sectionSize 512
 
 #define MAX_SUM_ARRAY_SIZE 1024
+#endif
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 // usage: checkCUDAError("a descriptive name of this error")
