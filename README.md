@@ -8,7 +8,7 @@ CUDA Stream Compaction
 
 #### Overview 
 
-This project implements Scan and Stream Compaction and tests performance of various implementations with different array size and block size( all implementations support Non-Power-Of-Two input). The detailed list is shown below:
+This project implements Scan and Stream Compaction and tests performance of various implementations with different array size and block size( all implementations support Non-Power-Of-Two input). The detailed list is shown below.
 
 *Scan 
     *cpu
@@ -19,6 +19,31 @@ This project implements Scan and Stream Compaction and tests performance of vari
     *cpu without scan
     *cpu with scan
     *gpu with work-efficient scan
+
+### Introduction
+
+Stream compaction, also known as stream filtering or selection, produces a smaller output array which contains the indices of the only wanted elements from the input array for further processing. It is commonly used in applications such as path tracing, collision detection, sparse matrix compression, etc. With the tremendous amount of data elements to be filtered, the performance of selection is of great concern. Modern Graphics Processing Units (GPUs) have been increasingly used to accelerate the execution of massively large, data parallel applications which include stream compaction. 
+
+A efficient parallelized Stream Compaction algorithm uses the scan algorithm as its backbone. Scanning involves converting an input arrayinto an output array such that every position in the output array is equal to a specified operation over every element before it in the input array.
+
+For example, given an input array x = {1, 3, 5, 9} and the addition operation, any element in the output array, y[i], is equal to x[0] + x[1] + ... + x[i]. This makes y = {1, 1+3, 1+3+5, 1+3+5+9} = {1, 4, 9, 18}.
+
+When the first element of the output array is simply a copy of the first element of the input array, as is the case here, this is called an Inclusive Scan.
+
+An Exclusive Scan is an inclusive scan shifted to the right by one element and filling in a '0' where the first element of the array was
+
+### CPU Scan
+This is a simple loop over all the N elements in an array which keeps accumulating value in its successive elements. This algorithm is very lean and runs in O(N) time.
+
+### Naive GPU Scan
+![](/img/figure-39-2.jpg)
+The naive parallel implementation found in the solution file is essentially a Kogge-Stone Adder. This is naive because it isn't work efficient (it does relatively excessive amournt of work). We simply traverse over the N elements log N times in parallel. On the first iteration, each pair of elements is summed, creating partial sums that we will use in the next iterations. It does O(N log N) work.
+
+upsweep
+![](/img/figure-39-4.jpg)
+In the upward sweep, threads collaborate to generate partial sums across the input array while traversing "upwards" in a tree like fashion. By the end of this phase, we have partial sums leading up to the final element, which contains a sum of all values in the input array.
+
+downsweep
 
 ### BlockSize Optimization
 A perilimary optimazation is done on the GPU block size parameter. Two different array lengths, 2^8 and 2^18 are used in this step. Through testing, changing blockSize does almost no effect on the performance the performance of Navie and efficient implmentation of scan and stream compaction with small input array size. In the case of big array size, block size does slightly affect the performance. There is no obvious pattern that purely increasing or decreasing block size would lead to a noticeable difference in performance, rather, there seem to be a sweet spot around blozk size 64 to 128. After consideration, bloci size of 128 is used for all the subsequent test results. The graph is plotted as following:
