@@ -6,6 +6,14 @@
 #define blockSize 1024
 //dim3 threadsPerBlock(blockSize);
 
+#ifndef imax
+#define imax( a, b ) ( ((a) > (b)) ? (a) : (b) )
+#endif
+
+#ifndef imin
+#define imin( a, b ) ( ((a) < (b)) ? (a) : (b) )
+#endif
+
 namespace StreamCompaction {
     namespace Efficient {
         using StreamCompaction::Common::PerformanceTimer;
@@ -16,7 +24,8 @@ namespace StreamCompaction {
         }
 
         int* dev_array;
-        int* dev_array2;
+        int* dev_array_static;
+        
 
         //__global__ void kernReduction_1st_attempt(
         //    int array_length, int sum_ind_diff, int start_ind, int stride,
@@ -127,7 +136,28 @@ namespace StreamCompaction {
             if (tx >= array_length) {
                 return;
             }
-            share_array[tx] = array[start_ind + tx];
+            //if (blockSize <= array_length) {
+            //    if (tx == blockSize - 1) {
+            //        share_array[tx] = 0;
+            //    }
+            //    else {
+            //        share_array[tx] = array[start_ind + tx];
+            //    }
+            //}
+            //else {
+            //    if (tx == array_length - 1) {
+            //        share_array[tx] = 0;
+            //    }
+            //    else {
+            //        share_array[tx] = array[start_ind + tx];
+            //    }
+            //}
+            if (tx == blockSize - 1) {
+                share_array[tx] = 0;
+            }
+            else {
+                share_array[tx] = array[start_ind + tx];
+            }
             __syncthreads();
             for (int depth_ind = depth - 1; depth_ind >= 0; depth_ind--) {
                 int stride = pow(2, depth_ind);
@@ -138,16 +168,21 @@ namespace StreamCompaction {
                 }
                 __syncthreads();
             }
-            array[start_ind + tx] = share_array[tx];
+            // convert result to inclusive
+            if (tx != blockSize - 1) {
+                array[start_ind + tx] = share_array[tx + 1];
+            }
         }
 
         __global__ void kernAdd(
-            int array_length, int value, int start_ind, int* array) {
+            int array_length, int value_ind, int* array_static, int start_ind, int* array) {
             int tx = threadIdx.x;
+            __shared__ int value;
+            value = array_static[value_ind];
             if (tx >= array_length) {
                 return;
             }
-            array[tx] += value;
+            array[tx + start_ind] += value;
         }
 
         //__global__ void kernScanFromReduction(
@@ -197,22 +232,57 @@ namespace StreamCompaction {
 
             for (int block_ind = 0; block_ind < num_block; block_ind++) {
                 int start_ind = block_ind * blockSize;
-                cudaMemset(dev_array + start_ind + blockSize - 1, 0, sizeof(int));
                 kernScanFromReduction << <fullBlocksPerGrid, blockSize >> > (array_length, depth, start_ind, dev_array);
             }
             cudaDeviceSynchronize();
 
-            //cudaMalloc((void**)&dev_array2, array_length * sizeof(int));
-            //cudaMemcpy(dev_array2, dev_array, array_length * sizeof(int), cudaMemcpyHostToDevice);
-            //for (int block_ind = 0; block_ind < num_block; block_ind++) {
-            //    int start_ind = block_ind * blockSize;
-            //    int value_ind = block_ind2 * blockSize - 1;
-            //    kernAdd << <fullBlocksPerGrid, blockSize >> > (array_length, value_ind, dev_array2, start_ind, dev_array);
-            //}
-            //timer().endGpuTimer();
-            cudaMemcpy(odata, dev_array, array_length * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMalloc((void**)&dev_array_static, array_length * sizeof(int));
+            cudaMemcpy(dev_array_static, dev_array, array_length * sizeof(int), cudaMemcpyHostToDevice);
+            
+            for (int block_ind2 = 1; block_ind2 < num_block; block_ind2++) {
+                for (int block_ind = block_ind2; block_ind < num_block; block_ind++) {
+                    int start_ind = block_ind * blockSize;
+                    int value_ind = block_ind2 * blockSize - 1;
+                    kernAdd << <fullBlocksPerGrid, blockSize >> > (array_length, value_ind, dev_array_static, start_ind, dev_array);
+                }
+            }
+            timer().endGpuTimer();
+            cudaMemcpy(odata + 1, dev_array, (array_length - 1) * sizeof(int), cudaMemcpyDeviceToHost);
+            odata[0] = 0;
+            //printf("\n");
+            //printf("\n");
 
-            //for (int ind = 0; ind < array_length; ind++) {
+            //for (int ind = 0; ind < array_length / 2; ind++) {
+            //    printf("%d ", odata[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+
+            //for (int ind = array_length / 2; ind < array_length; ind++) {
+            //    printf("%d ", odata[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+
+            //for (int ind = 0; ind < array_length/4; ind++) {
+            //    printf("%d ", odata[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+
+            //for (int ind = array_length / 4; ind < array_length/2; ind++) {
+            //    printf("%d ", odata[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+
+            //for (int ind = array_length / 2; ind < array_length / 4 * 3; ind++) {
+            //    printf("%d ", odata[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+
+            //for (int ind = array_length / 4 * 3; ind < array_length; ind++) {
             //    printf("%d ", odata[ind]);
             //}
             //printf("\n");

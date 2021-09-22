@@ -18,6 +18,19 @@ namespace StreamCompaction {
          * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
          */
         void scan(int n, int *odata, const int *idata) {
+
+            //for (int ind = 0; ind < n / 2; ind++) {
+            //    printf("%d ", idata[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+            //for (int ind = n / 2; ind < n; ind++) {
+            //    printf("%d ", idata[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+            
+
             timer().startCpuTimer();
             odata[0] = 0;
             for (int ind = 1; ind < n; ind++) {
@@ -25,7 +38,13 @@ namespace StreamCompaction {
             }
 
             timer().endCpuTimer();
-            //for (int ind = 0; ind < n; ind++) {
+
+            //for (int ind = 0; ind < n / 2; ind++) {
+            //    printf("%d ", odata[ind]);
+            //}
+            //printf("\n");
+            //printf("\n");
+            //for (int ind = n / 2; ind < n; ind++) {
             //    printf("%d ", odata[ind]);
             //}
             //printf("\n");
