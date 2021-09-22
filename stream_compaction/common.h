@@ -10,32 +10,41 @@
 #include <chrono>
 #include <stdexcept>
 
+#define blockSize 1024
+
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
+
+#define checkCUDAErrorWithLine(msg) checkCUDAError(msg, __LINE__)
 
 /**
  * Check for CUDA errors; print and exit if there was a problem.
  */
 void checkCUDAErrorFn(const char *msg, const char *file = NULL, int line = -1);
 
-inline int ilog2(int x) {
+inline int ilog2(int x)
+{
     int lg = 0;
-    while (x >>= 1) {
+    while (x >>= 1)
+    {
         ++lg;
     }
     return lg;
 }
 
-inline int ilog2ceil(int x) {
+inline int ilog2ceil(int x)
+{
     return x == 1 ? 0 : ilog2(x - 1) + 1;
 }
 
-namespace StreamCompaction {
-    namespace Common {
+namespace StreamCompaction
+{
+    namespace Common
+    {
         __global__ void kernMapToBoolean(int n, int *bools, const int *idata);
 
         __global__ void kernScatter(int n, int *odata,
-                const int *idata, const int *bools, const int *indices);
+                                    const int *idata, const int *bools, const int *indices);
 
         /**
         * This class is used for timing the performance
@@ -60,7 +69,10 @@ namespace StreamCompaction {
 
             void startCpuTimer()
             {
-                if (cpu_timer_started) { throw std::runtime_error("CPU timer already started"); }
+                if (cpu_timer_started)
+                {
+                    throw std::runtime_error("CPU timer already started");
+                }
                 cpu_timer_started = true;
 
                 time_start_cpu = std::chrono::high_resolution_clock::now();
@@ -70,7 +82,10 @@ namespace StreamCompaction {
             {
                 time_end_cpu = std::chrono::high_resolution_clock::now();
 
-                if (!cpu_timer_started) { throw std::runtime_error("CPU timer not started"); }
+                if (!cpu_timer_started)
+                {
+                    throw std::runtime_error("CPU timer not started");
+                }
 
                 std::chrono::duration<double, std::milli> duro = time_end_cpu - time_start_cpu;
                 prev_elapsed_time_cpu_milliseconds =
@@ -81,7 +96,10 @@ namespace StreamCompaction {
 
             void startGpuTimer()
             {
-                if (gpu_timer_started) { throw std::runtime_error("GPU timer already started"); }
+                if (gpu_timer_started)
+                {
+                    throw std::runtime_error("GPU timer already started");
+                }
                 gpu_timer_started = true;
 
                 cudaEventRecord(event_start);
@@ -92,7 +110,10 @@ namespace StreamCompaction {
                 cudaEventRecord(event_end);
                 cudaEventSynchronize(event_end);
 
-                if (!gpu_timer_started) { throw std::runtime_error("GPU timer not started"); }
+                if (!gpu_timer_started)
+                {
+                    throw std::runtime_error("GPU timer not started");
+                }
 
                 cudaEventElapsedTime(&prev_elapsed_time_gpu_milliseconds, event_start, event_end);
                 gpu_timer_started = false;
@@ -109,10 +130,10 @@ namespace StreamCompaction {
             }
 
             // remove copy and move functions
-            PerformanceTimer(const PerformanceTimer&) = delete;
-            PerformanceTimer(PerformanceTimer&&) = delete;
-            PerformanceTimer& operator=(const PerformanceTimer&) = delete;
-            PerformanceTimer& operator=(PerformanceTimer&&) = delete;
+            PerformanceTimer(const PerformanceTimer &) = delete;
+            PerformanceTimer(PerformanceTimer &&) = delete;
+            PerformanceTimer &operator=(const PerformanceTimer &) = delete;
+            PerformanceTimer &operator=(PerformanceTimer &&) = delete;
 
         private:
             cudaEvent_t event_start = nullptr;

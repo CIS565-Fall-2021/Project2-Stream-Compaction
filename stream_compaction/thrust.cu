@@ -6,10 +6,12 @@
 #include "common.h"
 #include "thrust.h"
 
-namespace StreamCompaction {
-    namespace Thrust {
+namespace StreamCompaction
+{
+    namespace Thrust
+    {
         using StreamCompaction::Common::PerformanceTimer;
-        PerformanceTimer& timer()
+        PerformanceTimer &timer()
         {
             static PerformanceTimer timer;
             return timer;
@@ -17,12 +19,18 @@ namespace StreamCompaction {
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
-        void scan(int n, int *odata, const int *idata) {
+        void scan(int n, int *odata, const int *idata)
+        {
+            thrust::host_vector<int> hv_idata(idata, idata + n);
+            thrust::device_vector<int> dv_idata(hv_idata);
+            thrust::device_vector<int> dv_odata(n);
             timer().startGpuTimer();
             // TODO use `thrust::exclusive_scan`
             // example: for device_vectors dv_in and dv_out:
             // thrust::exclusive_scan(dv_in.begin(), dv_in.end(), dv_out.begin());
+            thrust::exclusive_scan(dv_idata.begin(), dv_idata.end(), dv_odata.begin());
             timer().endGpuTimer();
+            thrust::copy(dv_odata.begin(), dv_odata.end(), odata);
         }
     }
 }
