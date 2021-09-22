@@ -3,16 +3,8 @@
 #include "common.h"
 #include "efficient.h"
 
-#define blockSize 1024
+#define blockSize 256
 //dim3 threadsPerBlock(blockSize);
-
-#ifndef imax
-#define imax( a, b ) ( ((a) > (b)) ? (a) : (b) )
-#endif
-
-#ifndef imin
-#define imin( a, b ) ( ((a) < (b)) ? (a) : (b) )
-#endif
 
 namespace StreamCompaction {
     namespace Efficient {
@@ -28,8 +20,8 @@ namespace StreamCompaction {
 
         int* dev_idata;
         int* dev_odata;
-        int* bools;
-        int* indices;
+        int* dev_bools;
+        int* dev_indices;
         
 
         //__global__ void kernReduction_1st_attempt(
@@ -317,39 +309,47 @@ namespace StreamCompaction {
                 memcpy(new_idata, idata, n * sizeof(int));
                 idata = new_idata;
             }
-            cudaMalloc((void**)&bools, array_length * sizeof(int));
-            cudaMalloc((void**)&indices, array_length * sizeof(int));
+            cudaMalloc((void**)&dev_bools, array_length * sizeof(int));
+            cudaMalloc((void**)&dev_indices, array_length * sizeof(int));
             cudaMalloc((void**)&dev_idata, array_length * sizeof(int));
             cudaMalloc((void**)&dev_odata, array_length * sizeof(int));
             cudaMemcpy(dev_idata, idata, array_length * sizeof(int), cudaMemcpyHostToDevice);
             dim3 fullBlocksPerGrid((array_length + blockSize - 1) / blockSize);
             int count = 0;
             int* host_bools = (int*) malloc(array_length * sizeof(int));
+            int num_block;
+            if (array_length < blockSize) {
+                num_block = 1;
+            }
+            else {
+                num_block = array_length / blockSize;
+            }
 
             timer().startGpuTimer();
-            Common::kernMapToBoolean << <fullBlocksPerGrid, blockSize >> > (array_length, bools, dev_idata);
+            for (int block_ind = 0; block_ind < num_block; block_ind++) {
+                int start_ind = block_ind * blockSize;
+                Common::kernMapToBoolean << <fullBlocksPerGrid, blockSize >> > (array_length, dev_bools + start_ind, dev_idata + start_ind);
+            }
             cudaDeviceSynchronize();
 
-            cudaMemcpy(host_bools, bools, array_length * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(host_bools, dev_bools, array_length * sizeof(int), cudaMemcpyDeviceToHost);
             Efficient::scan(array_length, odata, host_bools, false);
             //for (int ind = 0; ind < array_length; ind++) {
             //    printf("%d ", host_bools[ind]);
             //}
             //printf("\n");
             //printf("\n");
-            cudaMemcpy(indices, odata, array_length * sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_indices, odata, array_length * sizeof(int), cudaMemcpyHostToDevice);
 
-            Common::kernScatter << <fullBlocksPerGrid, blockSize >> > (array_length, dev_odata, dev_idata, bools, indices);
+            for (int block_ind = 0; block_ind < num_block; block_ind++) {
+                int start_ind = block_ind * blockSize;
+                Common::kernScatter << <fullBlocksPerGrid, blockSize >> > (array_length, dev_odata, dev_idata + start_ind, dev_bools + start_ind, dev_indices + start_ind);
+            }
             cudaDeviceSynchronize();
             timer().endGpuTimer();
-            cudaMemcpy(&count, indices + array_length - 1, 1 * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&count, dev_indices + array_length - 1, 1 * sizeof(int), cudaMemcpyDeviceToHost);
             cudaMemcpy(odata, dev_odata, count * sizeof(int), cudaMemcpyDeviceToHost);
 
-            //for (int ind = 0; ind < count; ind++) {
-            //    printf("%d ", odata[ind]);
-            //}
-            //printf("\n");
-            //printf("\n");
             return count;
         }
     }
