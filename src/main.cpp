@@ -152,33 +152,23 @@ int main(int argc, char* argv[]) {
     printf("** RADIX SORT TESTS **\n");
     printf("*****************************\n");
 
-    genArray(SIZE - 1, a, 100);  // Leave a 0 at the end to test that edge case
+    genArray(SIZE - 1, a, 20);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
     printArray(SIZE, a, true);
-
+    
     zeroArray(SIZE, b);
     printDesc("radix sort, power-of-two");
     StreamCompaction::Efficient::radixSort(SIZE, b, a);
-    for (int i = 0; i < SIZE - 1; ++i) {
-        if (b[i] > b[i + 1]) {
-            printf("FAILED\n");
-            break;
-        } else if (i == SIZE - 2) {
-            printf("passed\n")
-        }
-    }
-
-    zeroArray(SIZE, b);
+    std::memcpy(c, a, SIZE * sizeof(int));
+    std::sort(c, c + SIZE);
+    printCmpResult(SIZE, b, c);
+    
+    zeroArray(NPOT, b);
     printDesc("radix sort, non-power-of-two");
     StreamCompaction::Efficient::radixSort(NPOT, b, a);
-    for (int i = 0; i < NPOT - 1; ++i) {
-        if (b[i] > b[i + 1]) {
-            printf("FAILED\n");
-            break;
-        } else if (i == NPOT - 2) {
-            printf("passed\n")
-        }
-    }
+    std::memcpy(c, a, NPOT * sizeof(int));
+    std::sort(c, c + NPOT);
+    printCmpResult(NPOT, b, c);
 
     system("pause"); // stop Win32 console from closing on exit
     delete[] a;

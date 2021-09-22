@@ -3,6 +3,8 @@
 #include "common.h"
 #include "efficient.h"
 
+#define USING_SHARED_MEMORY 1
+
 namespace StreamCompaction {
     namespace Efficient {
         using StreamCompaction::Common::PerformanceTimer;
@@ -14,7 +16,7 @@ namespace StreamCompaction {
 
 #if USING_SHARED_MEMORY
 
-        const int blockSize_sharedMemory = 128;
+        const int blockSize_sharedMemory = 32;
 
         constexpr int logNumBanks = 5;
 
@@ -22,19 +24,27 @@ namespace StreamCompaction {
 
         __global__ void kernScanPerBlock(int n, int *dev_data, int *dev_blockSum) {
 
-            extern __shared__ int temp[];
+            if (n == 1) {
+                dev_data[0] = 0;
+                return;
+            }
+            
+            __shared__ int temp[2 * blockSize_sharedMemory + (2 * blockSize_sharedMemory >> logNumBanks)];
 
             int index = threadIdx.x;
             dev_data += blockDim.x * blockIdx.x * 2;
-            n = n > blockDim.x * 2 ? blockDim.x * 2;
+            if (n > blockDim.x * 2) {
+                n = blockDim.x * 2;
+            }
 
             int i = index;
             int j = index + n / 2;
             int ti = i + CONFLICT_FREE_OFFSET(i);
             int tj = j + CONFLICT_FREE_OFFSET(j);
+
             temp[ti] = dev_data[i];
             temp[tj] = dev_data[j];
-
+            
             int lastElement = 0;
             if (dev_blockSum && index == blockDim.x - 1) {
                 lastElement = temp[tj];
@@ -42,7 +52,7 @@ namespace StreamCompaction {
 
             int offset = 1;
             for (int d = n >> 1; d > 0; d >>= 1) {
-                _syncthreads();
+                __syncthreads();
                 if (index < d) {
                     int i = offset * (2 * index + 1) - 1;
                     int j = offset * (2 * index + 2) - 1;
@@ -59,7 +69,7 @@ namespace StreamCompaction {
 
             for (int d = 1; d < n; d *= 2) {
                 offset >>= 1;
-                _syncthreads();
+                __syncthreads();
                 if (index < d) {
                     int i = offset * (2 * index + 1) - 1;
                     int j = offset * (2 * index + 2) - 1;
@@ -71,7 +81,7 @@ namespace StreamCompaction {
                 }
             }
 
-            _syncthreads();
+            __syncthreads();
             dev_data[i] = temp[ti];
             dev_data[j] = temp[tj];
 
@@ -90,7 +100,7 @@ namespace StreamCompaction {
         void scanHelper(int size, int *dev_data) {
 
             if (size > 2 * blockSize_sharedMemory) {
-
+                
                 int blocks = size / (2 * blockSize_sharedMemory);
                 int *dev_blockSum;
                 cudaMalloc((void**) &dev_blockSum, blocks * sizeof(int));
@@ -100,7 +110,7 @@ namespace StreamCompaction {
                 kernAddPerBlock<<<blocks, blockSize_sharedMemory>>>(dev_data, dev_blockSum);
 
                 cudaFree(dev_blockSum);
-
+                
             } else {
                 kernScanPerBlock<<<1, blockSize_sharedMemory>>>(size, dev_data, nullptr);
             }
@@ -217,10 +227,10 @@ namespace StreamCompaction {
             if (index >= n) {
                 return;
             }
-            dev_bools[index] = (idata[index] & (1 << bitK)) == 0;
+            dev_bools[index] = (dev_idata[index] & (1 << bitK)) != 0 ? 0 : 1;
         }
 
-        __global void kernSplit(int n, int *dev_idata, int *dev_odata, int *dev_scan, int bitK, int totalFalses) {
+        __global__ void kernSplit(int n, int *dev_idata, int *dev_odata, int *dev_scan, int bitK, int totalFalses) {
             int index = blockIdx.x * blockDim.x + threadIdx.x;
             if (index >= n) {
                 return;
@@ -230,17 +240,17 @@ namespace StreamCompaction {
             if ((data & (1 << bitK)) == 0) {
                 dev_odata[scanIdx] = data;
             } else {
-                dev_odata[scanIdx + totalFalses] = data;
+                dev_odata[index - scanIdx + totalFalses] = data;
             }
         }
 
-        void radixSort(int n, int *odata, int *idata) {
+        void radixSort(int n, int *odata, const int *idata) {
 
             dim3 blocks((n + blockSize - 1) / blockSize);
             int size = 1 << ilog2ceil(n);
             int maxNum = 0;
             for (int i = 0; i < n; ++i) {
-                maxNum = std::max(maxNum, idata[n]);
+                maxNum = std::max(maxNum, idata[i]);
             }
             int maxBit = ilog2ceil(maxNum);
 
@@ -257,7 +267,7 @@ namespace StreamCompaction {
                 cudaMemcpy(&lastBool, dev_scan + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
                 cudaMemset(dev_scan + n, 0, (size - n) * sizeof(int));
                 scanHelper(size, dev_scan);
-                cudaMemcpy(&totalFalses, dev_scan + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+                cudaMemcpy(&lastScan, dev_scan + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
                 kernSplit<<<blocks, blockSize>>>(n, dev_data1, dev_data2, dev_scan, i, lastBool + lastScan);
                 std::swap(dev_data1, dev_data2);
             }
