@@ -72,7 +72,7 @@ namespace StreamCompaction {
             }
 
             // size of final array
-            int num = ((bitData[n - 1] == 1) ? scannedBitData[n - 1] : scannedBitData[n - 2]) + 1;
+            int num = scannedBitData[n - 1];
 
             // free allocated memory
             free(bitData);

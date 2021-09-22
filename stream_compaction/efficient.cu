@@ -48,44 +48,74 @@ namespace StreamCompaction {
                                          // this node's value
         }
 
-        /**
-         * Performs prefix-sum (aka scan) on idata, storing the result into odata.
-         */
-        // TODO: padding doesn't seem to work...
-        void scan(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
-            // allocate memory for the data buffer
-            int* devData;
-            int N = powi(2, ilog2ceil(n)); // get the minimum power of 2 >= nl
+        __global__ void kernel_bitmap(int* input, int* output, int n)
+        {
+            int k = blockIdx.x * blockDim.x + threadIdx.x;
 
-            cudaMalloc((void**)&devData, N * sizeof(int));
+            if (k > n - 1)
+                return;
 
-            // Copy idata to read and write buffer
-            cudaMemcpy(devData, idata, n * sizeof(int), cudaMemcpyHostToDevice);
-            if (N > n)
-                cudaMemset(devData + n, 0, (N - n) * sizeof(int)); // padding 
+            output[k] = input[k] > 0;
+        }
 
+        __global__ void kernel_scatter(int* input, int* bitmap, int* scanResult, int* dest, int n)
+        {
+            int k = blockIdx.x * blockDim.x + threadIdx.x;
+
+            if (k > n - 1)
+                return;
+
+            if (bitmap[k] == 1)
+            {
+                dest[scanResult[k]] = input[k];
+            }
+        }
+
+        void efficientScan(int* cudaBuffer, int n)
+        {
             // define kernel dimension
-            dim3 fullBlocksPerGrid((N + blockSize - 1) / blockSize);
+            dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
 
             // run up-sweep
-            for (int d = 0; d <= ilog2ceil(N) - 1; d++)
+            for (int d = 0; d <= ilog2ceil(n) - 1; d++)
             {
-                kernel_up_sweep << <fullBlocksPerGrid, blockSize >> > (devData, d, n);
+                kernel_up_sweep << <fullBlocksPerGrid, blockSize >> > (cudaBuffer, d, n);
             }
 
             // run down-sweep
-            cudaMemset(devData + N - 1, 0, sizeof(int));
-            for (int d = ilog2ceil(N) - 1; d >= 0; d--)
+            cudaMemset(cudaBuffer + n - 1, 0, sizeof(int));
+            for (int d = ilog2ceil(n) - 1; d >= 0; d--)
             {
-                kernel_down_sweep << <fullBlocksPerGrid, blockSize >> > (devData, d, n);
+                kernel_down_sweep << <fullBlocksPerGrid, blockSize >> > (cudaBuffer, d, n);
             }
+        }
+
+        /**
+         * Performs prefix-sum (aka scan) on idata, storing the result into odata.
+         */
+        void scan(int n, int *odata, const int *idata) {
+            timer().startGpuTimer();
+
+            // allocate memory for the data buffer
+            int* devBuffer;
+            int N = powi(2, ilog2ceil(n)); // get the minimum power of 2 >= n
+
+            cudaMalloc((void**)&devBuffer, N * sizeof(int));
+
+            // Copy idata to read and write buffer
+            cudaMemcpy(devBuffer, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+            if (N > n)
+                cudaMemset(devBuffer + n, 0, (N - n) * sizeof(int)); // padding 
+
+            // run efficient scan algorithm
+            efficientScan(devBuffer, N);
 
             // Copy write buffer to odata
-            cudaMemcpy(odata, devData, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, devBuffer, n * sizeof(int), cudaMemcpyDeviceToHost);
 
             // free memory
-            cudaFree(devData);
+            cudaFree(devBuffer);
+
             timer().endGpuTimer();
         }
 
@@ -100,9 +130,49 @@ namespace StreamCompaction {
          */
         int compact(int n, int *odata, const int *idata) {
             timer().startGpuTimer();
-            // TODO
+            int *devInput, *devBitmap, * devScan, * devOutput;
+            int N = powi(2, ilog2ceil(n)); // get the minimum power of 2 >= n
+
+            // allocate memory to device buffers
+            cudaMalloc((void**)&devInput, N * sizeof(int));
+            cudaMalloc((void**)&devBitmap, N * sizeof(int));
+            cudaMalloc((void**)&devScan, N * sizeof(int));
+            cudaMalloc((void**)&devOutput, N * sizeof(int));
+
+            // copy idata to device buffer
+            cudaMemcpy(devInput, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+            if (N > n)
+                cudaMemset(devInput + n, 0, (N - n) * sizeof(int)); // padding 
+
+            // define kernel dimension
+            dim3 fullBlocksPerGrid((N + blockSize - 1) / blockSize);
+
+            // step 1: compute temporary bitmap array
+            kernel_bitmap << <fullBlocksPerGrid, blockSize >> > (devInput, devBitmap, N);
+
+            // step 2: run exclusive scan on temporary bitmap array
+            cudaMemcpy(devScan, devBitmap, N * sizeof(int), cudaMemcpyDeviceToDevice);
+            efficientScan(devScan, N);
+
+            // step 3: scatter
+            kernel_scatter << <fullBlocksPerGrid, blockSize >> > (devInput, devBitmap, devScan, devOutput, N);
+            int numOfElements = 0;
+            cudaMemcpy(&numOfElements, devScan + N - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            cudaDeviceSynchronize();
+            //if (odata[n-1] == 0)
+            //    numOfElements--; // exclusive scan, may need to disregard last element
+
+            // copy device's output buffer to odata
+            cudaMemcpy(odata, devOutput, numOfElements * sizeof(int), cudaMemcpyDeviceToHost);
+
+            // free memory
+            cudaFree(devInput);
+            cudaFree(devBitmap);
+            cudaFree(devScan);
+            cudaFree(devOutput);
+
             timer().endGpuTimer();
-            return -1;
+            return numOfElements;
         }
     }
 }
