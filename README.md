@@ -79,13 +79,13 @@ This is because not all threads are actually working. For example, if the input 
 
 Before those optimaztions, the performance of efficient scan and stream compaction is very low, even lower than the serialized CPU implemention with complexity O(N). With the above steps, the performance of parallelized implementations exceeds pure CPU approach at input array size of approximately 2^14 to 2^16. 
 
-### Thrust Libs
+### Thrust Scan Library
 Scan and stream compaction is also implemented using thrust library. However, the speed of thrust scan is very slow. The reason behind that, in my opinion, is that these libraries, especially thrust, try to be as generic as possible and optimization often requires specialization: for example a specialization of an algorithm can use shared memory for fundamental types (like int or float) but the generic version can't. Thrust focuses on providing a generic template that can be easily used by all users and sacrifices speed for generalizability.
 
 ### Sample Test Result
 
-Sample performance test result of input array size of 2^8 with blockSize of 128
-![](img/raw_size_2_8.PNG)
+Sample performance test result of input array size of 2^8 with blockSize of 128:
+![](img/raw_array_size_2_8.PNG)
 
 ### Feedback
 Any feedback on errors in the above analysis or any other places is appreciated.
