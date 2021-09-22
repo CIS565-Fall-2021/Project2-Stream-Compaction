@@ -8,6 +8,8 @@
 
 ---
 
+I would like to extend project 2 by one day, please. 
+
 ## Features
 
 - CPU Scan & Stream Compaction
@@ -158,4 +160,12 @@ CUDA error (d:\dev\565\project2-stream-compaction\stream_compaction\naive.cu:84)
 - Fix: Need a if-statement to make sure we never access```XY[-1]```. Also need to make sure ```__syncthreads()``` are **not** in the if-statement. 
 
 > When a ```__syncthread()``` statement is placed in an if-statement, either all or none of the threads in a block execute the path that includes the __syncthreads(). PMPP p.59
+
+## Note
+
+- CPU sequential scan algorithms are linear algorithms and are extremely work-efficient. 
+- Expected speed:  Thrust > GPU Efficient(Brent Kung) >= CPU > Naive GPU (koggle stone)
+  - Why is Naive GPU slower than CPU ?
+    - Naive GPU has control divergence in the first warp. Performance hit is worse for smaller block size.
+    - Naive GPU is not work-efficient. Naive GPU has NlogN - (N - 1), whereas CPU has only (N - 1)
 
