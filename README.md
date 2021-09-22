@@ -13,7 +13,7 @@ Project 2 - CUDA Stream Compaction**
 
 This is a series of implementations of the scan (prefix-sum) and compaction algorithms.
 - Scan is an array operation that results in an identically sized array with each index containing a partial sum of the input array up to (and sometimes including) that index.
-- Compaction is an array operation that results in the same list with all identity elements. This can help compress large sparse arrays to only contain actual information.
+- Compaction is an array operation that results in the same list with all identity elements removed. This can help compress large sparse arrays to only contain actual information.
 
 This project includes:
 - A baseline CPU implementation of scan and compact.
