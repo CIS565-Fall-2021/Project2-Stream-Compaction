@@ -9,7 +9,7 @@ CUDA Stream Compaction
 
 ### Results
 
-In this lab I have implemented the scan (prefix-sum) and string compaction alogrithm in three different ways:
+In this lab I have implemented the scan (prefix-sum) and stream compaction alogrithm in three different ways:
 
 1. CPU sequential method
 2. GPU naive method, which parallelized the addition but has to iterate log(n) times.
