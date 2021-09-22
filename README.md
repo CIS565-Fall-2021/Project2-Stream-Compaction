@@ -7,8 +7,6 @@ Project 2 - CUDA Stream Compaction**
 
 ### Project 2: CUDA Stream Compaction
 
-![Screenshot of the output](img/proj2-results.jpg)
-
 ### Overview
 
 This is a series of implementations of the scan (prefix-sum) and compaction algorithms.
@@ -30,4 +28,6 @@ Lacking a more thorough pass of optimization, the results seem contradictory. Fo
 The CPU and naive GPU approaches are likely close to, if not exactly, optimal due to their simplicity. The work-efficient implementation on the other hand has some obvious optimization that can be done. While the work-efficient algorithm conserves work, threads are currently being launched carelessly even when they clearly will not be required to do any work on that iteration. Fixing this should result in an immediate improvement of performance.
 
 Lastly, varying block-size for each implementation while holding the array size fixed does not yield any significant improvement / deterioration. The typical block size of 128 seems to work fine.
+
+![Screenshot of the output](img/proj2-results.jpg)
 
