@@ -19,6 +19,9 @@ Additional attention has been given to utilizing shared memory in kernel computa
 
 The code is also implementation so large input array can be split into GPU blocksizes and merged after computation.
 
+Here is a diagram show the time different between different methods:
+![chart](img/chart.png)
+
 Here are the results of my implementations:
 ![scan](img/scan.png)
 
@@ -30,8 +33,8 @@ Here are some issues with the code:
 
 ### Discussions
 
-1. The efficient method is not so efficient mainly due to complex kernel operations and excessive memory operations. In the upper and down sweep more than half of the threads are idle. This creates a lot of CUDA core occupation and very scattering memory access. If the numbers in the array can be more comgregated, we can launch fewer threads and save more time in seqential memory access.
-2. Here is a diagram show the time different between different methods.
+The efficient method is not so efficient mainly due to complex kernel operations and excessive memory operations. In the upper and down sweep more than half of the threads are idle. This creates a lot of CUDA core occupation and very scattering memory access. If the numbers in the array can be more comgregated, we can launch fewer threads and save more time in seqential memory access.
+
 
 ### VS Studio useless machine
 ![VS studio](img/vss.gif)
