@@ -3,7 +3,7 @@
 #include "common.h"
 #include "efficient.h"
 
-#define blockSize 384
+#define blockSize 128
 
 namespace StreamCompaction {
     namespace Efficient {
