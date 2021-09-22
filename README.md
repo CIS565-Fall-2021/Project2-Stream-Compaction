@@ -25,8 +25,8 @@ The implementations are shown as following (all implementations support Non-Powe
 ### BlockSize Optimization
 An rought optimazation attempt is done on the GPU block size. Through testing, changing blockSize does almost no effect on the performance the performance of Navie and efficient implmentation of scan and stream compaction with small input array size. In the case of big array size, block size does slightly affect the performance. There is no obvious pattern that purely increasing or decreasing block size would lead to a noticeable difference in performance, rather, there seem to be a sweet spot around blozk size 64 to 128. After consideration, bloci size of 128 is used for all the subsequent test results. The graph is plotted as following:
 <p float="left">
-  <img src="/img/block_size.PNG" width="50" />
-  <img src="/block_size_big_array.PNG" width="50" /> 
+  <img src="/img/block_size.PNG" width="100" />
+  <img src="/img/block_size_big_array.PNG" width="100" /> 
 </p>
 <!-- ![](img/block_size.PNG) -->
 
