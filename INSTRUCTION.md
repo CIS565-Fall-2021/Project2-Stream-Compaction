@@ -1,7 +1,7 @@
 Project 2 Stream Compaction Instructions
 ========================
 
-This is due **Tuesday, September 22 2020 at midnight**.
+This is due **Tuesday, September 21 2021 at midnight**.
 
 **Summary:** In this project, you'll implement GPU stream compaction in CUDA,
 from scratch. This algorithm is widely used, and will be important for
@@ -44,8 +44,8 @@ This project (and all other CUDA projects in this course) requires an NVIDIA
 graphics card with CUDA capability. Any card with Compute Capability 2.0
 (`sm_20`) or greater will work. Check your GPU on this
 [compatibility table](https://developer.nvidia.com/cuda-gpus).
-If you do not have a personal machine with these specs, you may use those
-computers in SIG Lab which have supported GPUs.
+If you do not have a personal machine with these specs, you may use the CETS
+computers in Moore 100 or the SIG Lab which have supported GPUs.
 
 ### Useful existing code
 
