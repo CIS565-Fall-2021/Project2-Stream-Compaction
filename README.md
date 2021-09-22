@@ -34,6 +34,12 @@ The performance of the four scan functions is graphed below.
 	- Even though it looks like we have limited the number of active threads while performing "Upsweeep" and "Downsweep" the threads which are not doing anything have to wait for the other active threads in the warp to finish to become available again.
 	- Those idle threads cant be utilised by the GPU to perform any other tasks in the same depth of an upsweep or downsweep thereby decreasing our Parallelism.
 
+## Compaction Runtime Analysis
+The performance of the three compact algorithm is graphed below. 
+![Scan Runtime Analysis](img/Compaction.png)
+
+We see a similar trend in values as above Scan algorithm as these compact algorithms derive from Scan algorithm respectively.
+
 ## Radix Sort (Extra Credit)
 I have implemented "Parallel" radix sort which effectively work on compare bits of a decimal number by converting them to binary. This process starts by comparing least significant bit and continues until we have reached the most significant bit. 
 To check the authenticity of my implementation, I have compared results from mine to CUDA's Thrust::sort results. I tested it from 2^6^ size arrays upto 2^26^ where it passed on all the scenario's thereby validating my implementation. A screenshot of my result is shown below. An array of size 2^18^ is used.
