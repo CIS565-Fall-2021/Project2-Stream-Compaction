@@ -19,9 +19,6 @@ Additional attention has been given to utilizing shared memory in kernel computa
 
 The code is also implementation so large input array can be split into GPU blocksizes and merged after computation.
 
-Here is a diagram show the time different between different methods:
-![chart](img/chart.png)
-
 Here are the results of my implementations:
 ![scan](img/scan.png)
 
