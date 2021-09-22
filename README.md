@@ -11,14 +11,14 @@ CUDA Stream Compaction
 This project implements Scan and Stream Compaction and tests performance of various implementations with different array size and block size( all implementations support Non-Power-Of-Two input). The detailed list is shown below.
 
 *Scan 
-    *cpu
-    *naive (gpu)
-    *work-efficient (gpu, optimized indexing)
-    *thrust (gpu)
+  *cpu
+  *naive (gpu)
+  *work-efficient (gpu, optimized indexing)
+  *thrust (gpu)
 *Stream Compaction
-    *cpu without scan
-    *cpu with scan
-    *gpu with work-efficient scan
+  *cpu without scan
+  *cpu with scan
+  *gpu with work-efficient scan
 
 ### Introduction
 
@@ -31,19 +31,22 @@ For example, given an input array x = {1, 3, 5, 9} and the addition operation, a
 When the first element of the output array is simply a copy of the first element of the input array, as is the case here, this is called an Inclusive Scan. An Exclusive Scan is an inclusive scan shifted to the right by one element and filling in a '0' where the first element of the array was.
 
 ### CPU Scan
-This is a simple loop over all the N elements in an array which keeps accumulating value in its successive elements. This algorithm is very lean and runs in O(N) time.
+This is a simple loop over all the N elements in an array which keeps accumulating value in its successive elements. This algorithm is very lean and runs in O(N) time, but in a serialized loop.
 
 ### Naive GPU Scan
 ![](/img/figure-39-2.jpg)
 
-The naive parallel implementation found in the solution file is essentially a Kogge-Stone Adder. This is naive because it isn't work efficient (it does relatively excessive amournt of work). We simply traverse over the N elements log N times in parallel. On the first iteration, each pair of elements is summed, creating partial sums that we will use in the next iterations. It does O(N log N) work.
+The naive parallel implementation found in the solution file is essentially a Kogge-Stone Adder. This is naive because it isn't work efficient (it does relatively excessive amournt of work). We simply traverse over the N elements log N times in parallel. On the first iteration, each pair of elements is summed, creating partial sums that we will use in the next iterations. The total complexity is O(N log N).
 
-upsweep
+#### upsweep
 ![](/img/figure-39-4.jpg)
 
 In the upward sweep, threads collaborate to generate partial sums across the input array while traversing "upwards" in a tree like fashion. By the end of this phase, we have partial sums leading up to the final element, which contains a sum of all values in the input array.
 
-downsweep
+#### Downsweep
+After generating partial sums, we can begin the downsweep phase. We initially replace the last element in the array with a zero (in order to achieve an exclusive scan). We then traverse back down the tree, replacing the left child of each element with the current value and the right child with the sum of the old left child and the current value.
+
+The combination of UpSweep and DownSweep give us an exclusive scan which runs log N times for UpSweep and another log N times for DownSweep. The total complexity is O(N).
 
 ### BlockSize Optimization
 A perilimary optimazation is done on the GPU block size parameter. Two different array lengths, 2^8 and 2^18 are used in this step. Through testing, changing blockSize does almost no effect on the performance the performance of Navie and efficient implmentation of scan and stream compaction with small input array size. In the case of big array size, block size does slightly affect the performance. There is no obvious pattern that purely increasing or decreasing block size would lead to a noticeable difference in performance, rather, there seem to be a sweet spot around blozk size 64 to 128. After consideration, bloci size of 128 is used for all the subsequent test results. The graph is plotted as following:
@@ -74,7 +77,7 @@ Block size in the GPU can be changed to allow a bigger number of threads running
 * Reduce the number of threads that need to be launched.
 This is because not all threads are actually working. For example, if the input size is 1024, we only need 512 threads at most instead of 1024 for the first depth (the number of nodes in the addition tree is only half of the size).
 
-Before those optimaztions, the performance of efficient scan and stream compaction is very low, even lower than the CPU implemention with complexity O(n^2). With the above steps, the performance of parallelized implementations exceeds pure CPU approach at input array size of approximately 2^14 to 2^16. 
+Before those optimaztions, the performance of efficient scan and stream compaction is very low, even lower than the serialized CPU implemention with complexity O(N). With the above steps, the performance of parallelized implementations exceeds pure CPU approach at input array size of approximately 2^14 to 2^16. 
 
 ### Thrust Libs
 Scan and stream compaction is also implemented using thrust library. However, the speed of thrust scan is very slow. The reason behind that, in my opinion, is that these libraries, especially thrust, try to be as generic as possible and optimization often requires specialization: for example a specialization of an algorithm can use shared memory for fundamental types (like int or float) but the generic version can't. Thrust focuses on providing a generic template that can be easily used by all users and sacrifices speed for generalizability.
