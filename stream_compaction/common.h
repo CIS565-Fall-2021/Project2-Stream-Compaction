@@ -30,6 +30,13 @@ inline int ilog2ceil(int x) {
     return x == 1 ? 0 : ilog2(x - 1) + 1;
 }
 
+inline void exclusive2inclusive(int n, int* scanned, int lastvalue){
+  for(int i=0; i<n-1; i++){
+    scanned[i] = scanned[i+1];
+  }
+  scanned[n-1] = scanned[n-2] + lastvalue;
+}
+
 namespace StreamCompaction {
     namespace Common {
         __global__ void kernMapToBoolean(int n, int *bools, const int *idata);
