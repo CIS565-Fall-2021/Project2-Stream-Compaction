@@ -7,7 +7,7 @@
 // nvcc does not seem to like variadic macros, so we have to define
 // one for each kernel parameter list:
 
-#define blockSize 128
+#define blockSize 256
 
 namespace StreamCompaction {
     namespace Naive {
@@ -38,7 +38,6 @@ namespace StreamCompaction {
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
             // allocate memory for the read write buffers
             int* devRead, int* devWrite;
             cudaMalloc((void**)&devRead, n * sizeof(int));
@@ -51,6 +50,9 @@ namespace StreamCompaction {
             // define kernel dimension
             dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
 
+            // START TIMER
+            timer().startGpuTimer();
+
             // run naive scan
             for (int d = 1; d <= ilog2ceil(n); d++)
             {
@@ -60,6 +62,9 @@ namespace StreamCompaction {
               cudaMemcpy(devRead, devWrite, n * sizeof(int), cudaMemcpyDeviceToDevice); // TODO: is there another way?
             }
 
+            timer().endGpuTimer();
+            // TIMER END
+
             // Copy write buffer to odata
             odata[0] = 0;
             cudaMemcpy(odata + 1, devRead, (n - 1) * sizeof(int), cudaMemcpyDeviceToHost);
@@ -67,7 +72,6 @@ namespace StreamCompaction {
             // free memory
             cudaFree(devRead);
             cudaFree(devWrite);
-            timer().endGpuTimer();
         }
     }
 }

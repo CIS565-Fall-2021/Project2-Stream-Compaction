@@ -3,7 +3,7 @@
 #include "common.h"
 #include "efficient.h"
 
-#define blockSize 128
+#define blockSize 256
 
 namespace StreamCompaction {
     namespace Efficient {
@@ -48,29 +48,6 @@ namespace StreamCompaction {
                                          // this node's value
         }
 
-        __global__ void kernel_bitmap(int* input, int* output, int n)
-        {
-            int k = blockIdx.x * blockDim.x + threadIdx.x;
-
-            if (k > n - 1)
-                return;
-
-            output[k] = input[k] > 0;
-        }
-
-        __global__ void kernel_scatter(int* input, int* bitmap, int* scanResult, int* dest, int n)
-        {
-            int k = blockIdx.x * blockDim.x + threadIdx.x;
-
-            if (k > n - 1)
-                return;
-
-            if (bitmap[k] == 1)
-            {
-                dest[scanResult[k]] = input[k];
-            }
-        }
-
         void efficientScan(int* cudaBuffer, int n)
         {
             // define kernel dimension
@@ -94,8 +71,6 @@ namespace StreamCompaction {
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
-
             // allocate memory for the data buffer
             int* devBuffer;
             int N = powi(2, ilog2ceil(n)); // get the minimum power of 2 >= n
@@ -107,16 +82,20 @@ namespace StreamCompaction {
             if (N > n)
                 cudaMemset(devBuffer + n, 0, (N - n) * sizeof(int)); // padding 
 
+            // START TIMER
+            timer().startGpuTimer();
+
             // run efficient scan algorithm
             efficientScan(devBuffer, N);
+
+            timer().endGpuTimer();
+            // TIMER END
 
             // Copy write buffer to odata
             cudaMemcpy(odata, devBuffer, n * sizeof(int), cudaMemcpyDeviceToHost);
 
             // free memory
             cudaFree(devBuffer);
-
-            timer().endGpuTimer();
         }
 
         /**
@@ -129,7 +108,6 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
             int *devInput, *devBitmap, * devScan, * devOutput;
             int N = powi(2, ilog2ceil(n)); // get the minimum power of 2 >= n
 
@@ -147,20 +125,26 @@ namespace StreamCompaction {
             // define kernel dimension
             dim3 fullBlocksPerGrid((N + blockSize - 1) / blockSize);
 
+            // START TIMER
+            timer().startGpuTimer();
+
             // step 1: compute temporary bitmap array
-            kernel_bitmap << <fullBlocksPerGrid, blockSize >> > (devInput, devBitmap, N);
+            Common::kernMapToBoolean << <fullBlocksPerGrid, blockSize >> > (N, devBitmap, devInput);
 
             // step 2: run exclusive scan on temporary bitmap array
             cudaMemcpy(devScan, devBitmap, N * sizeof(int), cudaMemcpyDeviceToDevice);
             efficientScan(devScan, N);
 
             // step 3: scatter
-            kernel_scatter << <fullBlocksPerGrid, blockSize >> > (devInput, devBitmap, devScan, devOutput, N);
+            Common::kernScatter << <fullBlocksPerGrid, blockSize >> > (N, devOutput, devInput, devBitmap, devScan);
+
+            timer().endGpuTimer();
+            // TIMER END
+
+            // find number of elements
             int numOfElements = 0;
             cudaMemcpy(&numOfElements, devScan + N - 1, sizeof(int), cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
-            //if (odata[n-1] == 0)
-            //    numOfElements--; // exclusive scan, may need to disregard last element
 
             // copy device's output buffer to odata
             cudaMemcpy(odata, devOutput, numOfElements * sizeof(int), cudaMemcpyDeviceToHost);
@@ -170,8 +154,6 @@ namespace StreamCompaction {
             cudaFree(devBitmap);
             cudaFree(devScan);
             cudaFree(devOutput);
-
-            timer().endGpuTimer();
             return numOfElements;
         }
     }
