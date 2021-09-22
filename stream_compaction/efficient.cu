@@ -119,22 +119,6 @@ namespace StreamCompaction {
             if (tx >= array_length) {
                 return;
             }
-            //if (blockSize <= array_length) {
-            //    if (tx == blockSize - 1) {
-            //        share_array[tx] = 0;
-            //    }
-            //    else {
-            //        share_array[tx] = array[start_ind + tx];
-            //    }
-            //}
-            //else {
-            //    if (tx == array_length - 1) {
-            //        share_array[tx] = 0;
-            //    }
-            //    else {
-            //        share_array[tx] = array[start_ind + tx];
-            //    }
-            //}
             if (tx == blockSize - 1) {
                 share_array[tx] = 0;
             }
