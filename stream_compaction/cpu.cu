@@ -19,7 +19,12 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+
+            odata[0] = idata[0];
+            for (int i = 1; i < n; i++) {
+              odata[i] = odata[i - 1] + idata[i];
+            }
+
             timer().endCpuTimer();
         }
 
@@ -30,9 +35,16 @@ namespace StreamCompaction {
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            
+            int j = 0;
+            for (int i = 0; i < n; i++) {
+              if (idata[i] > 0) {
+                odata[j++] = idata[i];
+              }
+            }
+
             timer().endCpuTimer();
-            return -1;
+            return j;
         }
 
         /**
@@ -41,10 +53,45 @@ namespace StreamCompaction {
          * @returns the number of elements remaining after compaction.
          */
         int compactWithScan(int n, int *odata, const int *idata) {
-            timer().startCpuTimer();
-            // TODO
-            timer().endCpuTimer();
-            return -1;
+          
+          // criteria array
+          int* tmp = new int[n * sizeof(int)];
+          int* scan_out = new int[n * sizeof(int)];
+          
+          timer().startCpuTimer();
+
+          for (int i = 0; i < n; i++) {
+            tmp[i] = (idata[i] > 0) ? 1 : 0;
+          }
+
+          // inclusive scan
+          scan_out[0] = tmp[0];
+          for (int i = 1; i < n; i++) {
+            scan_out[i] = scan_out[i-1] + tmp[i];
+          }
+          int N = scan_out[n - 1];  // total number
+
+          // make exclusive
+          // shift array right
+          for (int i = n; i > 0; i--) {
+            scan_out[i] = scan_out[i-1];
+          }
+          scan_out[0] = 0;  // insert identity
+          
+          // scatter
+
+          for (int i = 0; i < n; i++) {
+            if (tmp[i] > 0) {
+              odata[scan_out[i]] = idata[i];
+            }
+          }
+
+          timer().endCpuTimer();
+
+          free(tmp);
+          free(scan_out);
+
+          return N;
         }
     }
 }
