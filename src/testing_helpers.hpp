@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <ctime>
+#include <vector>
 
 template<typename T>
 int cmpArrays(int n, T *a, T *b) {
@@ -73,4 +74,20 @@ template<typename T>
 void printElapsedTime(T time, std::string note = "")
 {
     std::cout << "   elapsed time: " << time << "ms    " << note << std::endl;
+}
+
+void tabulate(std::vector<float>* data, float* mean, float* stdDev) {
+    float sum = 0;
+    for (auto i : *data) {
+        sum += i;
+    }
+    *mean = sum / data->size();
+
+    float variance = 0;
+    for (auto i : *data) {
+        variance += (i - *mean) * (i - *mean);
+    }
+    variance /= data->size();
+
+    *stdDev = sqrt(variance);
 }
