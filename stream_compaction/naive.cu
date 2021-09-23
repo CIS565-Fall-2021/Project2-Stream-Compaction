@@ -4,7 +4,6 @@
 #include "naive.h"
 
 #define blockSize 1024
-dim3 threadsPerBlock(blockSize);
 
 namespace StreamCompaction {
     namespace Naive {
@@ -15,28 +14,18 @@ namespace StreamCompaction {
             return timer;
         }
         int* dev_array;
+        int* dev_array2;
         
         __global__ void kernScanLayer(
-            int array_length, int stride, int* array) {
+            int array_length, int stride, int* array, int* array2) {
             // compute one layer of scan in parallel.
             int index = threadIdx.x + (blockIdx.x * blockDim.x);
             if (index >= array_length - stride) {
                 return;
             }
-            array[index + stride] += array[index];
+            array[index + stride] += array2[index];
             __syncthreads();
         }
-
-        //__global__ void kernAdd(
-        //    int array_length, int value_ind, int* array_static, int start_ind, int* array) {
-        //    int tx = threadIdx.x;
-        //    __shared__ int value;
-        //    value = array_static[value_ind];
-        //    if (tx >= array_length) {
-        //        return;
-        //    }
-        //    array[tx + start_ind] += value;
-        //}
 
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
@@ -62,15 +51,19 @@ namespace StreamCompaction {
 
             dim3 fullBlocksPerGrid((array_length + blockSize - 1) / blockSize);
             cudaMalloc((void**)&dev_array, array_length * sizeof(int));
+            cudaMalloc((void**)&dev_array2, array_length * sizeof(int));
             cudaMemcpy(dev_array + 1, idata, (array_length - 1) * sizeof(int), cudaMemcpyHostToDevice);
             cudaMemset(dev_array, 0, sizeof(int));
+            cudaMemcpy(dev_array2, dev_array, array_length * sizeof(int), cudaMemcpyHostToDevice);
 
             timer().startGpuTimer();
             for (int depth_ind = 1; depth_ind <= depth; depth_ind++) {
                 int stride = pow(2, depth_ind - 1);
-                kernScanLayer << <fullBlocksPerGrid, blockSize >> > (array_length, stride, dev_array);
+                kernScanLayer << <fullBlocksPerGrid, blockSize >> > (array_length, stride, dev_array, dev_array2);
+                cudaMemcpy(dev_array2, dev_array, array_length * sizeof(int), cudaMemcpyHostToDevice);
+                cudaDeviceSynchronize();
             }
-            cudaDeviceSynchronize();
+            
 
             timer().endGpuTimer();
             cudaMemcpy(odata, dev_array, n * sizeof(int), cudaMemcpyDeviceToHost);
