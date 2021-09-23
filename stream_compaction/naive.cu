@@ -204,15 +204,8 @@ namespace StreamCompaction {
 
             int sumArraySizeBytes = (n / SECTION_SIZE) * sizeof(int);
 
-            // MaxThreadsPerBlock: 1024
-            // assert(SECTION_SIZE <= 1024);
-            // assert(n <= 1048576); // 2^20
-
             dim3 dimGridKogge((n + SECTION_SIZE - 1) / SECTION_SIZE, 1, 1);
             dim3 dimBlockKogge(SECTION_SIZE, 1, 1);
-
-            // dim3 dimGridKoggeSumArray(1, 1, 1);
-            // dim3 dimBlockKoggeSumArray(SECTION_SIZE, 1, 1);
 
             int* sumArrayOutput = new int[n / SECTION_SIZE];
 
@@ -237,18 +230,6 @@ namespace StreamCompaction {
             timer().startGpuTimer();
             kernKoggeStoneScan <<<dimGridKogge, dimBlockKogge >>> (d_X, d_Y, d_S, n);
             scanRecursiveHelper(n / SECTION_SIZE, d_SOut, d_S);
-#if 0
-            cudaMemcpy(sumArrayOutput, d_SOut, sumArraySizeBytes,
-                cudaMemcpyDeviceToHost);
-            checkCUDAError("memCpy back failed!");
-
-            printf("\n");
-
-            for (int i = 0; i < n / SECTION_SIZE; i++)
-            {
-                std::cout << sumArrayOutput[i] << '\n';
-            }
-#endif
 
             kernKoggeStoneScanAddUpSumArray <<<dimGridKogge, dimBlockKogge >>> (
                 d_SOut, d_Y, n);

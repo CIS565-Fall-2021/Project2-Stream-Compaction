@@ -11,13 +11,11 @@
 ## Features
 
 - CPU Scan & Stream Compaction
-- Naive GPU Scan Algorithm Using Shared Memory
+- Recusive Naive GPU Scan Algorithm Using Shared Memory
 - Work-Efficient GPU Scan Using Shared Memory & Stream Compaction
 - Thrust's Scan Algorithm
 
 For all GPU Scan algorithms, I choose to implement inclusive Scan first, and then convert the result of inclusive Scan to exclusive Scan. This can be done in parallel with minimal code. 
-
-In this version, the partial sum array has a maximum size of 1024. Thus, the number of elements the Scan algorithm can handle is limited. 
 
 ## Performance Analysis
 
