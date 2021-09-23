@@ -49,6 +49,8 @@ void onesArray(int n, int *a) {
     }
 }
 
+// This function populates n elements of array a with values 
+// between 0 and maxval - 1
 void genArray(int n, int *a, int maxval) {
     srand(time(nullptr));
 
