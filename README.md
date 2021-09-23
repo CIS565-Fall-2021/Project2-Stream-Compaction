@@ -6,6 +6,7 @@ CUDA Stream Compaction
 * Zirui Zang
   * [LinkedIn](https://www.linkedin.com/in/zirui-zang/)
 * Tested on: Windows 10, AMD Ryzen 7 3700X @ 3.60GHz 32GB, RTX2070 SUPER 8GB (Personal)
+* I'm using one late day for this project. 
 
 ### Results
 
@@ -19,14 +20,18 @@ Additional attention has been given to utilizing shared memory in kernel computa
 
 The code is also implementation so large input array can be split into GPU blocksizes and merged after computation.
 
+Here are the charts of my implementations:
+![chart_scan](img/chart_scan.png)
+
+![chart_stream](img/chart_stream.png)
+
 Here are the results of my implementations:
 ![scan](img/scan.png)
 
 ![string](img/string.png)
 
 Here are some issues with the code:
-1. The efficient method doesn't run correctly with very large number of input. Possbibly due to block/thread synchronization issue.
-2. The efficient method is not efficient at all.
+1. The efficient method is not efficient at all.
 
 ### Discussions
 
