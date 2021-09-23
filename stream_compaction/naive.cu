@@ -123,6 +123,78 @@ namespace StreamCompaction {
             Y[i] = XY[threadIdx.x];
         }
 
+        void scanRecursiveHelper(int n, int* odata, const int* idata)
+        {
+            int blockSize = (n + SECTION_SIZE - 1) / SECTION_SIZE;
+            int idataSizeBytes = n * sizeof(int);
+
+            int sumArraySizeBytes = n <= 1024 ? n * sizeof(int) 
+                : (n / SECTION_SIZE) * sizeof(int);
+
+            dim3 dimGridKogge(blockSize, 1, 1);
+            dim3 dimBlockKogge(SECTION_SIZE, 1, 1);
+
+            if (blockSize == 1)
+            {
+                int* d_X;
+                int* d_Y;
+                cudaMalloc((void**)&d_X, idataSizeBytes);
+                checkCUDAError("cudaMalloc d_X failed!");
+                cudaMalloc((void**)&d_Y, idataSizeBytes);
+                checkCUDAError("cudaMalloc d_Y failed!");
+
+                cudaMemcpy(d_X, idata, idataSizeBytes, cudaMemcpyHostToDevice);
+
+                kernKoggeStoneScan << <dimGridKogge, dimBlockKogge >> > (
+                    d_X, d_Y, n);
+  
+                cudaMemcpy(odata, d_Y, idataSizeBytes, cudaMemcpyDeviceToHost);
+                checkCUDAError("memCpy back failed!");
+#if 0
+                std::cout << '\n';
+                for (int i = 0; i < n; i++)
+                {
+                    std::cout << odata[i] << '\n';
+                }
+#endif
+                cudaFree(d_X);
+                cudaFree(d_Y);
+                checkCUDAError("cudaFree failed!");
+            }
+            else {
+                int* d_X;
+                int* d_Y;
+                cudaMalloc((void**)&d_X, idataSizeBytes);
+                checkCUDAError("cudaMalloc d_X failed!");
+                cudaMalloc((void**)&d_Y, idataSizeBytes);
+                checkCUDAError("cudaMalloc d_Y failed!");
+                int* d_S;
+                int* d_SOut;
+                cudaMalloc((void**)&d_S, sumArraySizeBytes);
+                checkCUDAError("cudaMalloc d_S failed!");
+                cudaMalloc((void**)&d_SOut, sumArraySizeBytes);
+                checkCUDAError("cudaMalloc d_SOut failed!");
+
+                cudaMemcpy(d_X, idata, idataSizeBytes, cudaMemcpyHostToDevice);
+                checkCUDAError("memCpy back failed!");
+
+                kernKoggeStoneScan << <dimGridKogge, dimBlockKogge >> > (d_X, d_Y, d_S, n);
+
+                scanRecursiveHelper(n / SECTION_SIZE, d_SOut, d_S);
+                kernKoggeStoneScanAddUpSumArray << <dimGridKogge, dimBlockKogge >> > (
+                    d_SOut, d_Y, n);
+
+                cudaMemcpy(odata, d_Y, idataSizeBytes, cudaMemcpyDeviceToHost);
+                checkCUDAError("memCpy back failed!");
+
+                cudaFree(d_X);
+                cudaFree(d_Y);
+                cudaFree(d_S);
+                cudaFree(d_SOut);
+                checkCUDAError("cudaFree failed!");
+            }
+        }
+
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
@@ -133,14 +205,16 @@ namespace StreamCompaction {
             int sumArraySizeBytes = (n / SECTION_SIZE) * sizeof(int);
 
             // MaxThreadsPerBlock: 1024
-            assert(SECTION_SIZE <= 1024);
-            assert(n <= 1048576); // 2^20
+            // assert(SECTION_SIZE <= 1024);
+            // assert(n <= 1048576); // 2^20
 
             dim3 dimGridKogge((n + SECTION_SIZE - 1) / SECTION_SIZE, 1, 1);
             dim3 dimBlockKogge(SECTION_SIZE, 1, 1);
 
-            dim3 dimGridKoggeSumArray(1, 1, 1);
-            dim3 dimBlockKoggeSumArray(SECTION_SIZE, 1, 1);
+            // dim3 dimGridKoggeSumArray(1, 1, 1);
+            // dim3 dimBlockKoggeSumArray(SECTION_SIZE, 1, 1);
+
+            int* sumArrayOutput = new int[n / SECTION_SIZE];
 
             int* d_X;
             int* d_Y;
@@ -162,7 +236,20 @@ namespace StreamCompaction {
 
             timer().startGpuTimer();
             kernKoggeStoneScan <<<dimGridKogge, dimBlockKogge >>> (d_X, d_Y, d_S, n);
-            kernKoggeStoneScan <<<dimGridKoggeSumArray, dimBlockKoggeSumArray >>> (d_S, d_SOut, n);
+            scanRecursiveHelper(n / SECTION_SIZE, d_SOut, d_S);
+#if 0
+            cudaMemcpy(sumArrayOutput, d_SOut, sumArraySizeBytes,
+                cudaMemcpyDeviceToHost);
+            checkCUDAError("memCpy back failed!");
+
+            printf("\n");
+
+            for (int i = 0; i < n / SECTION_SIZE; i++)
+            {
+                std::cout << sumArrayOutput[i] << '\n';
+            }
+#endif
+
             kernKoggeStoneScanAddUpSumArray <<<dimGridKogge, dimBlockKogge >>> (
                 d_SOut, d_Y, n);
             convertFromInclusiveToExclusive << <dimGridKogge, dimBlockKogge >> > (
