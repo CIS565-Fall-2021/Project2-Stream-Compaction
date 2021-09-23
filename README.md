@@ -7,6 +7,8 @@ CUDA Stream Compaction
   * [LinkedIn](https://www.linkedin.com/in/matt-elser-97b8151ba/), [twitter](twitter.com/__mattelser__)
 * Tested on: Tested on: Ubuntu 20.04, i3-10100F @ 3.6GHz 16GB, GeForce 1660 Super 6GB
 
+![timing data table](img/timingData.png)
+
 ### Main Features
 This project implements an exclusive scan (performing an operation on (in this case a sum of) all previous 
 elements along an array) and stream compaction (removing elements from an array based on a condition) using 
@@ -17,22 +19,27 @@ the CPU, GPU with CUDA, and the CUDA powered library `Thrust`.
 
 ### Time Comparison
 The test setup in `main.cpp` has been coopted to set up repeated timings to remove noise from measurements.
-![timing data table](img/timingData.png)
+
+![scan comparison plot](img/scanPlot.png)
+![compact comparison plot](img/compactPlot.png)
+
 CPU scan and compact may be faster for smaller arrays, but the efficient GPU algorithms become more efficient 
-at array size 2^16^ for compact and 2^17^ for efficient scan. 
+at array size 2^16 for compact and 2^17 for efficient scan. 
 
 ### Block Size Comparison
 changing the number of threads per blocks did not have a noticeable impact on timing. Minor differences are 
-can be seen in the tables below, but almost all are around one standard deviation of another, so this may just
-be noise.
-![block comparison tables](img/blockComparison.png)
+can be seen in the graph below, but almost all are around one standard deviation of another, so this may just
+be noise. Data was gathered by timing 100 runs of each algorithm with an array of size 2^22, see the bottom of 
+the readme for the data table.
+
+![block comparison plot](img/blocksizePlot.png)
 
 ### Known limitations
-- [FIXED] The Naive implementation fails for array sizes greater than 2^25^. 
+- [FIXED] The Naive implementation fails for array sizes greater than 2^25. 
   - Naive was calling an inefficient number of threads, leading to higher-than needed `threadIdx.x` 
     values. When multiplied to get the `index` this overflowed int and yielded a negative index.
     Logic around indices (reasonably) assumed positive values and therefore caused an out of bounds write.
-- compact scan fails for array sizes greater than 2^28^ due to running out of CPU memory on the (16Gb) test machine.
+- compact scan fails for array sizes greater than 2^28 due to running out of CPU memory on the (16Gb) test machine.
 
 ### Extra Credit
 - Work Efficient GPU algorithms are more efficient than CPU (for large array sizes). This was achieved 
@@ -48,4 +55,9 @@ be noise.
   and non-power of two) up until 2^27, at which point the test machine runs out of memory. Radix sorting has been 
   validated against `Thrust`'s sort (though the timing of the two are different by several orders of magnitude). 
   The algorithm has not been optimized to use shared memory or contiguous memory reads, and would fail for arrays with
-  negative values. 
+  negative values. Here is a plot comparing the timing of the radix sort implementation with `Thrust`s sort
+  ![sort runtime comparison](img/sortPlot.png)
+  
+  
+  
+![block comparison table](img/blockComparison.png)
