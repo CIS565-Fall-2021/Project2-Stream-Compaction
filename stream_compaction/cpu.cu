@@ -3,6 +3,7 @@
 
 #include "common.h"
 
+#include <iostream>
 namespace StreamCompaction {
     namespace CPU {
         using StreamCompaction::Common::PerformanceTimer;
@@ -19,7 +20,10 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            odata[0] = 0;
+            for (int i = 1; i < n; i++) {
+              odata[i] = odata[i - 1] + idata[i - 1];
+            }
             timer().endCpuTimer();
         }
 
@@ -30,9 +34,15 @@ namespace StreamCompaction {
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            int o = 0;
+            for (int i = 0; i < n; i++) {
+                if (idata[i] != 0) {
+                    odata[o] = idata[i];
+                    o++;
+                }
+            }
             timer().endCpuTimer();
-            return -1;
+            return o;
         }
 
         /**
@@ -42,9 +52,27 @@ namespace StreamCompaction {
          */
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            int* mask = new int[n];
+            for (int i = 0; i < n; i++) {
+                mask[i] = idata[i] == 0 ? 0 : 1;
+            }
+
+            int* scatter = new int[n];
+
+            scatter[0] = 0;
+            for (int i = 1; i < n; i++) {
+              scatter[i] = scatter[i - 1] + mask[i - 1];
+            }
+
+            int o = 0;
+            for (int i = 0; i < n; i++) {
+              if (mask[i] != 0) {
+                odata[scatter[i]] = idata[i];
+                o++;
+              }
+            }
             timer().endCpuTimer();
-            return -1;
+            return o;
         }
     }
 }
