@@ -69,7 +69,7 @@ namespace StreamCompaction {
               int thisThreadsIndex1 = offset * (2 * threadIdx.x + 1) - 1;
               int thisThreadsIndex2 = offset * (2 * threadIdx.x + 2) - 1;
 
-              float tmp = shared_array[thisThreadsIndex1];
+              int tmp = shared_array[thisThreadsIndex1];
               shared_array[thisThreadsIndex1] = shared_array[thisThreadsIndex2];
               shared_array[thisThreadsIndex2] += tmp;
             }
@@ -86,7 +86,7 @@ namespace StreamCompaction {
         int* scan(int n, int *odata, int *idata) {
           int paddedN = int(pow(2.0, ilog2ceil(n)));
           int nThreadsNeeded = paddedN / 2;
-          int blockSize = std::min(256, nThreadsNeeded);
+          int blockSize = std::min(128, nThreadsNeeded);
           int nBlocks = ceil(nThreadsNeeded * 1.0 / blockSize);
           int nElementsPerBlock = 2 * blockSize;
 
@@ -94,7 +94,6 @@ namespace StreamCompaction {
           std::cout << "paddedN: " << paddedN << std::endl;
           std::cout << "grid size: " << nBlocks << std::endl;
           std::cout << "block size: " << blockSize << std::endl;
-          
 
           int* device_odata;
           cudaMalloc((void**)&device_odata, paddedN * sizeof(int));
@@ -147,6 +146,7 @@ namespace StreamCompaction {
             //if (odata) {
             //  timer().startGpuTimer();
             //}
+
             kernScan << <nBlocks, blockSize, nElementsPerBlock * sizeof(int) >> > (nThreadsNeeded, nElementsPerBlock, device_idata, device_odata, device_blockSums);
             checkCUDAError("kernScan failed!");
             cudaDeviceSynchronize();
@@ -159,9 +159,10 @@ namespace StreamCompaction {
             kernIncrement << <nBlocks, blockSize >> > (nThreadsNeeded, device_odata, device_blockIncrements);
             checkCUDAError("kernIncrement failed!");
             cudaDeviceSynchronize();
- /*           if (odata) {
-              timer().endGpuTimer();
-            }*/
+
+            //if (odata) {
+            //  timer().endGpuTimer();
+            //}
 
             if (!odata) {
               return device_odata;
@@ -234,17 +235,17 @@ namespace StreamCompaction {
           timer().startGpuTimer();
           kernMapToBoolean << <nBlocks, blockSize >> > (n, device_idata, device_booleanMask);
           cudaDeviceSynchronize();
-          timer().endGpuTimer();
-
+          
           int* device_booleanMaskScan = scan(n, NULL, device_booleanMask);
 
           kernScatter << <nBlocks, blockSize >> > (n, device_idata, device_odata, device_booleanMask, device_booleanMaskScan);
-          
+          timer().endGpuTimer();
 
           int size;
           cudaMemcpy(&size, device_booleanMaskScan + paddedN - 1, sizeof(int), cudaMemcpyDeviceToHost);
           cudaMemcpy(odata, device_odata, paddedN * sizeof(int), cudaMemcpyDeviceToHost);
 
+          // cudaFree(device_flipflopA);
           return size;
         }
     }

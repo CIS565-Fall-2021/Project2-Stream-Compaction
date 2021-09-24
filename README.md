@@ -17,17 +17,54 @@ I implemented parts 1 - 4, and bonus part 7 using shared memory in the GPU Effic
 The next section covers a performance overview of the various implementations and the final section contains my concluding thoughts about the assignment.
 
 ## Performance analysis
-The plot below shows that as the problem size increases, most implementations take longer. The abrupt jump of some of the lines shows that most of the time taken by some algorithms is due to overhead instead of solving the problem. The Thrust library is clearly (and unsurprisingly) the most optimized. These tests were done with a block size of 256 becuase that seemed to work best up to 2^20.
+The following two plots demonstrate how the Scan and Stream Compaction algorithms perform on arrays of varying sizes on both the CPU and GPU. The block size used on the GPU was 128. Array sizes were tested both with exact powers-of-two and non-powers-of-two. There was no noticable difference in performance between the two, since the algorithm begins by simply padding the non-power-of-two array. The plots below show only the power-of-two results.
 
-It is seen that most of the GPU implementations are slower than the CPU equivalents. The two major GPU slowdowns that come to mind are a) copying data to the GPU with `cudamemcpy()` and accessing global memory inside the kernals, which was sometimes necessary. Clearly an optimized implementation on the GPU _far_ outperforms the CPU equivalent, since GPU Thrust does best.
+<img src="img/proj2_1.png" alt="graph" width="500"/>
+<img src="img/proj2_2.png" alt="graph" width="500"/>
 
-<img src="img/download.png" alt="graph" width="500"/>
+The left figure shows Scan runtimes. It is seen that the naive GPU implementation is essentially as inefficient as the non-parallel CPU implementation. As expected, Thrust on the GPU outperforms my "efficient" GPU implementation, but at least there is a noticable difference between my naive and efficient GPU implementations.
 
-Two things that made performance analysis difficult were that
-- Efficient stream compaction (`Eff Comp`) used the efficient scan (`Efficient Scan`) code between its two kernels. I ended up only measuring the time it took to run the first kernel, `kernMapToBoolean`.
-- Efficient scan (`Efficient Scan`) is a recursive algorithm with a lot of memory allocation at each recursive call. I ended up only measuring the duration of the kernels at the top level of recursion.
+The right figure shows the Stream Compaction runtimes where it is seen that both CPU implementations slow down rapidly while the GPU implementation actually suffers from an Out Of Memory error before breaking a sweat. This is a clear example of the space-time tradeoff in algorithmic efficiency.
 
-I would have liked to test arrays beyond 2^20 but I had a bug that I described on Piazza.
+A few additional notes follow.
+- There was an extremely pernicious bug where I used a `float` instead of an `int` and ended up with semi-determinsitic off-by-one-or-two errors with large array sizes. This same value is a `float` in GPU Gems 3, [Chapter 39](https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda), which is the inspiration for this project.
+- The GPU Scan function signature originally looked like
+    ```
+    void scan(int n, int *odata, const int *idata)
+    ```
+    This is a function that returns nothing and takes as input two pointers to CPU-side arrays. The algorithm begins by copying `idata` to the GPU and ends by copying the result from the GPU into `odata`. An issue I ran into was that for arrays of a sufficiently large size, this function would need to make a recursive call. The reason for this is covered towards the end of the aforementioned GPU Gems 3 chapter.
+
+    I modified this function signature to look like
+    ```
+    int* scan(int n, int *odata, int *idata)
+    ```
+    If the number of blocks needed is greater than 1, then a recursive call is made, where `odata` is `NULL` and `idata` is a GPU-side pointer.
+
+    The base case is when the requisite number of blocks is 1. In this case, if `odata` is supplied then it is assumed that there was no recursive call and `idata` is a CPU-side pointer. If `odata` was not supplied, then this is assumed to have been a recursive call, `idata` is assumed to be a GPU-side pointer, and the function returns another pointer to GPU memory.
+
+    What follows is an example of the logs generated during recursive calls.
+    ```
+    ==== work-efficient scan, power-of-two ====
+
+    paddedN: 16777216
+    grid size: 65536
+    block size: 128
+
+    paddedN: 65536
+    grid size: 256
+    block size: 128
+
+    paddedN: 256
+    grid size: 1
+    block size: 128
+    ```
+    This function was difficult but fun to implement and I am pleased with how well it kept up with Thrust's Scan implementation. Part of the reason may be due to the fact that I had my kernel copy global memory to shared memory, which is much faster.
+
+## Concluding thoughts
+- The work-efficient parallel scan algorithm was the most complicated code I've ever written. While coding, I felt as though I was building a card castle in my mind and any distraction would knock it over and I'd have to start over. It just required a large mental cache in order to make progress.
+- I think that well-written CPU code is self-documenting; if you use descriptive variable and function names, and give each function a single purpose, then there is little need for code comments. I'm starting to believe that no matter how nicely written CUDA code is, it will always require comments for a future reader. With CPU code, I may sacrifice some performance for readability. With GPU code, I'm realizing that all readability is sacrificed for performance. Machine-efficient code is simply not readable.
+- I think this may be a good assignment to start with because it allows us to discover clearly how to take a simple CPU algorithm and implement it on the GPU for maximum performance. Also, we were shown how there are many ways the algorithms can be optimized, but I was a little frustrated that that lecture was *the day before* this was due. I think we could get a lot out of spending time optimizing this algorithm.
+
 ## Program output
 ```
 ****************
@@ -126,8 +163,3 @@ block size: 16
 
 Press any key to continue . . .
 ```
-
-## Concluding thoughts
-- The work-efficient parallel scan algorithm was the most complicated code I've ever written. While coding, I felt as though I was building a card castle in my mind and any distraction would knock it over and I'd have to start over. It just required a large mental cache in order to make progress. I'm proud of my solution, but there is an odd off-by-1 error (that I reported on Piazza) when n gets larger than 2^20, for certain block sizes. But my recursion and parallelism clearly work, even when the block size is 4 with 2^18 elements.
-- I think that well-written CPU code is self-documenting; if you use descriptive variable and function names, and give each function a single purpose, then there is little need for code comments. I'm starting to believe that no matter how nicely written CUDA code is, it will always require comments for a future reader. With CPU code, I may sacrifice some performance for readability. With GPU code, I'm realizing that all readability is sacrificed for performance. Machine-efficient code is simply not readable.
-- I think this may be a good assignment to start with because it allows us to discover clearly how to take a simple CPU algorithm and implement it on the GPU for maximum performance. Also, we were shown how there are many ways the algorithms can be optimized, but I was a little frustrated that that lecture was *the day before* this was due. I think we could get a lot out of spending time optimizing this algorithm.
