@@ -26,7 +26,9 @@ From Nsight Profiling, basically it is memory I/O which is the bottleneck. This 
 
 
 output Example:
-
+```
+```
+```
 ****************
 ** SCAN TESTS **
 ****************
@@ -79,5 +81,7 @@ output Example:
 ==== work-efficient compact, non-power-of-two ====
    elapsed time: 0.057856ms    (CUDA Measured)
 
-
+```
+```
+```
 
