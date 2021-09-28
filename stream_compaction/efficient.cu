@@ -16,15 +16,23 @@ namespace StreamCompaction {
             for all k = 0 to n ¨C 1 by 2^(d + 1) in parallel
                 x[k + 2^(d + 1) ¨C 1] += x[k + 2^d ¨C 1];*/
         __global__ void kernUpSweep(int* data, int d, int maxSize) {
-            int index  = (blockIdx.x * blockDim.x) + threadIdx.x;
+            int index = (blockIdx.x * blockDim.x) + threadIdx.x;
             if (index > maxSize) {
                 return;
             }
-            int powD = pow(2.0, d);
-            int powDplusOne = pow(2.0, d + 1);
-            if (index % powDplusOne == 0) {
-                data[index + powDplusOne - 1] += data[index + powD - 1];
+            int powD = powf(2.0, d);
+            int powDplusOne = powf(2.0, d + 1);
+
+            int selected = index * powDplusOne;
+
+            if (selected >= maxSize) {
+                return;
             }
+
+            data[selected + powDplusOne - 1] += data[selected + powD - 1];
+
+    
+
         }
 
 
@@ -42,19 +50,28 @@ namespace StreamCompaction {
                 return;
             }
 
-            int powD = pow(2.0, d);
-            int powDplusOne = pow(2.0, d + 1);
-            if (index % powDplusOne == 0) {
-                int temp = data[index + powD - 1];
-                data[index + powD - 1] = data[index + powDplusOne - 1];
-                data[index + powDplusOne - 1] = temp + data[index + powDplusOne - 1];
+            int powD = powf(2.0, d);
+            int powDplusOne = powf(2.0, d + 1);
+
+            int selected = index * powDplusOne;
+
+            if (selected >= maxSize) {
+                return;
             }
+
+            int temp = data[selected + powD - 1];
+            data[selected + powD - 1] = data[selected + powDplusOne - 1];
+            data[selected + powDplusOne - 1] = temp + data[selected + powDplusOne - 1];
+
+      
+
         }
 
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
+
 
             int totalD = ilog2ceil(n);
             int maxSize = pow(2, totalD);
@@ -63,7 +80,7 @@ namespace StreamCompaction {
 
             int* device_idata;
             int* device_odata;
-            
+
             cudaMalloc((void**)&device_idata, maxSize * sizeof(int));
             cudaMalloc((void**)&device_odata, maxSize * sizeof(int));
 
