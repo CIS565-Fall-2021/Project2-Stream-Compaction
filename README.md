@@ -5,7 +5,7 @@ Implementing GPU stream compaction in CUDA, from scratch. GPU stream compaction 
 
 
 
-**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 1 - Flocking**
+**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2 - Stream Compaction**
 
 - Anthony Mansur
   - https://www.linkedin.com/in/anthony-mansur-ab3719125/
