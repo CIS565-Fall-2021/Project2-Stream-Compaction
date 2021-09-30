@@ -30,6 +30,11 @@ inline int ilog2ceil(int x) {
     return x == 1 ? 0 : ilog2(x - 1) + 1;
 }
 
+inline int powi(int a, int b)
+{
+    return (int)(powf(a, b) + 0.5);
+}
+
 namespace StreamCompaction {
     namespace Common {
         __global__ void kernMapToBoolean(int n, int *bools, const int *idata);

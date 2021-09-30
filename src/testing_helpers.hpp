@@ -10,7 +10,7 @@ template<typename T>
 int cmpArrays(int n, T *a, T *b) {
     for (int i = 0; i < n; i++) {
         if (a[i] != b[i]) {
-            printf("    a[%d] = %d, b[%d] = %d\n", i, a[i], i, b[i]);
+            printf("    expected[%d] = %d, actual[%d] = %d\n", i, a[i], i, b[i]);
             return 1;
         }
     }

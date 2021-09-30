@@ -19,7 +19,9 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            odata[0] = 0; // identity
+            for (int i = 1; i < n; i++)
+              odata[i] = odata[i - 1] + idata[i - 1];
             timer().endCpuTimer();
         }
 
@@ -30,9 +32,14 @@ namespace StreamCompaction {
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            int num = 0;
+            for (int i = 0; i < n; i++)
+            {
+              if (idata[i] > 0)
+                odata[num++] = idata[i];
+            }
             timer().endCpuTimer();
-            return -1;
+            return num;
         }
 
         /**
@@ -42,9 +49,35 @@ namespace StreamCompaction {
          */
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
-            timer().endCpuTimer();
-            return -1;
+            // Temporary array with 0 or 1 depending if entry is a nonzero value
+            int* bitData = (int*) malloc(sizeof(int) * n);
+            for (int i = 0; i < n; i++)
+            {
+              bitData[i] = (idata[i] > 0) ? 1 : 0;
+            }
+            
+            // run exclusive scan on temporary array
+            int* scannedBitData = (int*) malloc(sizeof(int) * n);
+            scannedBitData[0] = 0; // identity
+            for (int i = 1; i < n; i++)
+              scannedBitData[i] = scannedBitData[i - 1] + bitData[i - 1];
+
+            // scatter to compute the stream compaction
+            for (int i = 0; i < n; i++)
+            {
+              if (bitData[i] == 1)
+              {
+                odata[scannedBitData[i]] = idata[i];
+              }
+            }
+
+            // size of final array
+            int num = scannedBitData[n - 1];
+
+            // free allocated memory
+            free(bitData);
+            free(scannedBitData);
+            return num;
         }
     }
 }
