@@ -17,12 +17,13 @@ namespace StreamCompaction {
 		 * For performance analysis, this is supposed to be a simple for loop.
 		 * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
 		 */
-		void scan(int n, int *odata, const int *idata) {
+		void scan(int n, int *odata, const int *idata)
+		{
 			timer().startCpuTimer();
 
-			odata[0] = 0
+			odata[0] = 0;
 			for (int i = 1; i < n; i++)
-				odata[i] = odata[i-1] + idata[i-1]
+				odata[i] = odata[i-1] + idata[i-1];
 
 			timer().endCpuTimer();
 		}
@@ -32,16 +33,17 @@ namespace StreamCompaction {
 		 *
 		 * @returns the number of elements remaining after compaction.
 		 */
-		int compactWithoutScan(int n, int *odata, const int *idata) {
+		int compactWithoutScan(int n, int *odata, const int *idata)
+		{
 			timer().startCpuTimer();
 			
 			const int *in = idata;
 			int *out = odata;
-			int *in_end = idata + n;
+			const int *in_end = idata + n;
 
 			for (; in < in_end; in++) {
 				if (*in)
-					*out++ = *in
+					*out++ = *in;
 			}
 
 			timer().endCpuTimer();
@@ -53,22 +55,35 @@ namespace StreamCompaction {
 		 *
 		 * @returns the number of elements remaining after compaction.
 		 */
-		int compactWithScan(int n, int *odata, const int *idata) {
+		int compactWithScan(int n, int *odata, const int *idata)
+		{
+			int* bdata = new int[n];
+			int* sdata = new int[n];
+			int count = 0;
+
 			timer().startCpuTimer();
-			
-			int *bdata = malloc(sizeof(*bdata) * n);
+
 			for (int i = 0; i < n; i++)
 				bdata[i] = idata[i] ? 1 : 0;
 
-			int *sdata = malloc(sizeof(*sdata) * n);
-			scan(n, sdata, bdata);
+			/* scan */
+			sdata[0] = 0;
+			for (int i = 1; i < n; i++)
+				sdata[i] = sdata[i - 1] + bdata[i - 1];
 
 			/* scatter */
 			for (int i = 0; i < n; i++) {
-				if (bdata[i])
+				if (bdata[i]) {
 					odata[sdata[i]] = idata[i];
+					count++;
+				}
+			}
+
 			timer().endCpuTimer();
-			return -1;
+
+			delete[] bdata;
+			delete[] sdata;
+			return count;
 		}
 	}
 }
