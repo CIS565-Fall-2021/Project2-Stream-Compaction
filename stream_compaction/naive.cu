@@ -2,6 +2,7 @@
 #include <cuda_runtime.h>
 #include "common.h"
 #include "naive.h"
+#include "cVec.h"
 
 /*! Block size used for CUDA kernel launch. */
 #define blockSize 256
@@ -39,37 +40,22 @@ namespace Naive {
 		*/
 		int log2n = ilog2ceil(n);
 
-		int *dev_data_in, *dev_data_out;
-
-		cudaMalloc((void**)&dev_data_in, n * sizeof(*dev_data_in));
-		checkCUDAError("cudaMalloc dev_data_in failed!");
-
-		cudaMalloc((void**)&dev_data_out, n * sizeof(*dev_data_out));
-		checkCUDAError("cudaMalloc dev_data_out failed!");
-
-		cudaMemcpy(dev_data_in, idata, sizeof(*idata) * n, cudaMemcpyHostToDevice);
-		checkCUDAError("memcpy idata to device failed!");
-
-
+		cVec<int> data_in(n, n, idata), data_out(n);
 		dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
 
 		timer().startGpuTimer();
 
 		for (int d = 0; d < log2n; d++) {
-			kern_scan<<<fullBlocksPerGrid, blockSize>>>(d, n, dev_data_in, dev_data_out);
-			std::swap(dev_data_in, dev_data_out);
+			kern_scan<<<fullBlocksPerGrid, blockSize>>>(d, n, data_in.raw_data(), data_out.raw_data());
+			std::swap(data_in, data_out);
 		}
 		timer().endGpuTimer();
 
 		checkCUDAError("kern_scan failed!");
 
-		cudaMemcpy(odata+1, dev_data_in, (n-1) * sizeof(*odata), cudaMemcpyDeviceToHost);
-		checkCUDAError("memcpy dev_data_in to host failed!");
-		odata[0] = 0;
 
-		cudaFree(dev_data_in);
-		cudaFree(dev_data_out);
-		checkCUDAError("cudaFree failed!");
+		data_in.copy_to_host(0, n-1, odata+1);
+		odata[0] = 0;
 	}
 }
 }
