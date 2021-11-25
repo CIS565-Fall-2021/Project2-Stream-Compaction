@@ -38,13 +38,13 @@ namespace Naive {
 		/* the implementation does inclusive scan, then the first (n-1) vals are copied
 		 * to odata[1:] and odata[0] is set to 0
 		*/
-		int log2n = ilog2ceil(n);
 
 		cu::cVec<int> data_in(n, idata), data_out(n);
 		dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
 
 		timer().startGpuTimer();
 
+		int log2n = ilog2ceil(n);
 		for (int d = 0; d < log2n; d++) {
 			kern_scan<<<fullBlocksPerGrid, blockSize>>>(d, n, data_in.raw_ptr(), data_out.raw_ptr());
 			checkCUDAError("kern_scan failed!");

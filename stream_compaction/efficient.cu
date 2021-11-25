@@ -42,14 +42,14 @@ namespace Efficient {
 		int log2n = ilog2ceil(N);
 		int fullBlocksPerGrid = (N + blockSize - 1)/blockSize;
 		for (int d = 0; d < log2n; d++) {
-			//int count = N / (1 << d);
-//				dim3 fullBlocksPerGrid((count + blockSize - 1) / blockSize);
+			int count = N / (1 << d);
+			dim3 fullBlocksPerGrid((count + blockSize - 1) / blockSize);
 			kern_up_sweep<<<fullBlocksPerGrid, blockSize>>>(d, N, dev_data->raw_ptr());
 		}
 		cu::memset(dev_data->ptr() + N-1, 0, 1);
 		for (int d = log2n - 1; d >= 0; d--) {
-		//	int count = N / (1 << d);
-		//	dim3 fullBlocksPerGrid((count + blockSize - 1) / blockSize);
+			int count = N / (1 << d);
+			dim3 fullBlocksPerGrid((count + blockSize - 1) / blockSize);
 			kern_down_sweep<<<fullBlocksPerGrid, blockSize>>>(d, N, dev_data->raw_ptr());
 		}
 	}
