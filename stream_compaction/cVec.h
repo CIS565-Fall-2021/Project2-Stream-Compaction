@@ -1,84 +1,171 @@
 #pragma once
-#include <cuda.h>
 #include <cuda_runtime.h>
+#include <cuda.h>
 #include "common.h"
+
+namespace cu {
+
+
+template <typename T> class cPtr;
+template <typename T> class cVec;
+
+template <typename T>
+/* allocates device array T[len] of length len */
+cPtr<T> make(size_t len) {
+		T *d;
+		cudaMalloc((void**) &d, sizeof(*d) * len);
+		checkCUDAError("cVec: cudaMalloc failed!");
+		return cPtr<T>(d);
+}
+
+template <typename T>
+/* deletes device array */
+static void del(cPtr<T> p) {
+	cudaFree(p.raw_ptr());
+	checkCUDAError("cVec: cudaFree failed!");
+}
+
+
+/* a "raw" pointer for device memory, points to cuda allocated memory, not a smart pointer */
+template <typename T>
+class cPtr {
+	T *p;
+public:
+
+	constexpr cPtr() : p(nullptr) {}
+	cPtr(T *dev_ptr) : p(dev_ptr) {}
+	cPtr(const cPtr<T> &cp) : p(cp.p) {}
+	cPtr<T>& operator=(const cPtr<T>& cp) { p = cp.p; return *this; }
+	cPtr(cPtr&& cp) : p(cp.p) { cp.p = nullptr; }
+	cPtr& operator=(cPtr&& cp) { p = cp.p; cp.p = nullptr; return *this; }
+	~cPtr() {}
+
+	cPtr<T>& operator=(const cVec<T>& v) { p = v.p; return *this; }
+
+	cPtr& operator++() { p++; return *this; }
+	cPtr operator++(int) { cPtr<T> cp = *this; p++; return cp; }
+	cPtr& operator--() { p--; return *this; }
+	cPtr operator--(int) { cPtr<T> cp = *this; p--; return cp; }
+	cPtr& operator+=(size_t i) { p += i; return *this; }
+	cPtr& operator-=(size_t i) { p -= i; return *this; }
+	cPtr operator+(size_t i) const { cPtr<T> cp = *this; cp.p += i; return cp; }
+	cPtr operator-(size_t i) const { cPtr<T> cp = *this; cp.p -= i; return cp; }
+
+	bool operator!() const { return p != nullptr; }
+
+	bool operator==(const cPtr<T> &b) const { return p == b.p; }
+	bool operator!=(const cPtr<T> &b) const { return p != b.p; }
+	bool operator<=(const cPtr<T> &b) const { return p <= b.p; }
+	bool operator>=(const cPtr<T> &b) const { return p >= b.p; }
+	bool operator< (const cPtr<T> &b) const { return p < b.p; }
+	bool operator> (const cPtr<T> &b) const { return p > b.p; }
+
+	T *raw_ptr()  { return p; }
+	const T *raw_ptr() const { return p; }
+};
+
+template <typename T>
+/* set n elements to val */
+void memset(cPtr<T> dst, const T val, size_t n = 1) {
+	cudaMemset(dst.raw_ptr(), val, n * sizeof(T));
+	checkCUDAError("cuda memset failed!");
+}
+
+template <typename T>
+/* copies n elements from device pointer src to device pointer dst */
+void copy(cPtr<T> dst, const cPtr<T> src, size_t n) {
+	cudaMemcpy(dst.raw_ptr(), src.raw_ptr(), n * sizeof(T), cudaMemcpyDeviceToDevice);
+	checkCUDAError("cuda memcpy device to device failed!");
+}
+
+template <typename T>
+/* copies n elements from host pointer src to device pointer dst */
+void copy(cPtr<T> dst, const T* src, size_t n) {
+	cudaMemcpy(dst.raw_ptr(), src, n * sizeof(T), cudaMemcpyHostToDevice);
+	checkCUDAError("cuda memcpy host to device failed!");
+}
+
+template <typename T>
+/* copies n elements from device pointer src to host pointer dst */
+void copy(T *dst, const cPtr<T> src, size_t n) {
+	cudaMemcpy(dst, src.raw_ptr(), n * sizeof(T), cudaMemcpyDeviceToHost);
+	checkCUDAError("cuda memcpy device to host failed!");
+}
+
+template <typename T>
+/* copies n elements from host pointer src to host pointer dst */
+void copy(T* dst, const T* src, size_t n) {
+	cudaMemcpy(dst, src, n * sizeof(T), cudaMemcpyHostToHost);
+	checkCUDAError("cuda memcpy host to host failed!");
+}
+
+
+
 
 /* smart container for manually allocated CUDA memory, holds both single vars and arrays */
 
 template <typename T>
 class cVec {
 	size_t n;
-	T *data;
-
-	/* resizes the memory to n if different, invalidating the memory contents */
-	void resize(int n) {
-		if (this->n != n) {
-			cudaFree(data);
-			checkCUDAError("cVec: cudaFree resize failed!");
-			this->n = n;
-			cudaMalloc((void **) &data, sizeof(*data) * n);
-			checkCUDAError("cVec: cudaMalloc resize failed!");
-		}
-	}
+	cPtr<T> p;
 
 public:
-	constexpr cVec() : n(0), data(nullptr) {}
+	constexpr cVec() : n(0), p(nullptr) {}
 
-	/* constructor, takes in host pointer, length of pointer array, and desired capacity of device array
-	 * cap must be longer than length */
-	cVec(size_t cap, size_t length, const T *host_ptr) : n(length) {
-		cudaMalloc((void **) &data, sizeof(*data) * cap);
-		checkCUDAError("cVec: cudaMalloc host constructor failed!");
-		cudaMemcpy(data, host_ptr, n * sizeof(*data), cudaMemcpyHostToDevice);
-		checkCUDAError("cVec: cudaMemcpy host constructor failed!");
+
+	/* constructor, takes in host pointer, length of pointer array */
+	cVec(size_t len, const T *host_ptr) : n(len) {
+		p = make<T>(n);
+		copy(p, host_ptr, n);
 	}
 
+	/* constructor, takes in host pointer, length of pointer array, and desired length of device array.  dev_len cannot be shorter than host_len */
+	cVec(size_t host_len, const T *host_ptr, size_t dev_len) : n(dev_len) {
+		p = make<T>(n);
+		copy(p, host_ptr, host_len);
+	}
 
 	/* constructor, does not zero memory */
-	cVec(size_t n) : n(n) {
-		cudaMalloc((void **) &data, sizeof(*data) * n);
-		checkCUDAError("cVec: cudaMalloc constructor failed!");
+	cVec(size_t len) : n(len) {
+		p = make<T>(n);
 	}
 
 	/* copy constructor */
-	cVec(const cVec<T>& v) : n(v.n) {  
-		cudaMalloc((void **) &data, sizeof(*data) * n);
-		checkCUDAError("cVec: cudaMalloc copy constructor failed!");
-		cudaMemcpy(data, v.data, n * sizeof(*data), cudaMemcpyDeviceToDevice);
-		checkCUDAError("cVec: cudaMemcpy copy constructor failed!");
+	cVec(const cVec<T>& v) : n(v.n) {
+		p = make<T>(n);
+		copy(p, v.p, n);
 	}
 
 	/* copy assignment */
 	cVec<T>& operator=(const cVec<T>& v) {
-		n = 0;
-		data = nullptr;
-		resize(v.n);
-		cudaMemcpy(data, v.data, n * sizeof(*data), cudaMemcpyDeviceToDevice);
-		checkCUDAError("cVec: cudaMemcpy copy assignment failed!");
+		if (v.n != n) {
+			n = v.n;
+			del(p);
+			p = make<T>(n);
+		}
+		copy(p, v.p, n);
 	}
 
 	/* destructor */
 	~cVec() {
-		cudaFree(data);
-		checkCUDAError("cudaFree destructor failed!");
+		del(p);
 		n = 0;
-		data = nullptr;
+		p = nullptr;
 	}
 
 	/* move constructor */
-	explicit cVec(cVec&& v) : n(v.n), data(v.data) {
+	cVec(cVec&& v) : n(v.n), p(v.p) {
 		v.n = 0;
-		v.data = nullptr;
+		v.p = nullptr;
 	}
 
 	/* move assignment */
 	cVec& operator=(cVec&& v){
-		cudaFree(data);
-		checkCUDAError("cVec: cudaFree move assignment failed!");
+		del(p);
 		n = v.n;
-		data = v.data;
+		p = v.p;
 		v.n = 0;
-		v.data = nullptr;
+		v.p = nullptr;
 		return *this;
 	}
 
@@ -87,58 +174,12 @@ public:
 	}
 
 	size_t size() {
-		return n * sizeof(*data);
+		return n * sizeof(T);
 	}
 
-	T* raw_data() {
-		return data;
-	}
+	cPtr<T> ptr() { return p; }
 
-	const T operator[](size_t i) const {
-		T t;
-		cudaMemcpy(&t, data + i, sizeof(*data), cudaMemcpyDeviceToHost);
-		checkCUDAError("cudaMemcpy of single byte device to host failed");
-		return t;
-	}
-
-
-	/* sets the contents to the array pointed by host_ptr
-	 * calling cudaFree and cudaMalloc if necessary
-	 */
-	cVec& set_from_host(size_t n, const T* host_ptr) {
-		resize(n);
-		cudaMemcpy(data, host_ptr, n * sizeof(*data), cudaMemcpyHostToDevice);
-		checkCUDAError("cVec: cudaMemcpy set_from_host failed!");
-		return *this;
-	}
-
-
-	/* copies device memory to main memory and returns a pointer to it
-	 * length of returned array is also given by length().
-	 * returned array must be manually deleted with delete[]
-	 */
-	T *get_to_host() {
-		T *host_data = new int[n];
-		cudaMemcpy(host_data, data, n * sizeof(*data), cudaMemcpyDeviceToHost);
-		checkCUDAError("cVec: cudaMemcpy set assignment failed!");
-		return host_data;
-	}
-
-	/* copies size elements of device memory starting at offset bytes to the given buffer in host memory */
-	void copy_to_host(size_t offset, size_t n, T* host_data) {
-		cudaMemcpy(host_data, data + offset, n * sizeof(*data), cudaMemcpyDeviceToHost);
-		checkCUDAError("cVec: cudaMemcpy copy_to_host failed!");
-	}
-
-	/* sets n elements, starting at position offset, to val*/
-	cVec& memset(size_t offset, size_t n, T val) {
-		cudaMemset(data + offset, val, n * sizeof(*data));
-		return *this;
-	}
-
-	/* copies n elements from v, starting at offset*/
-	void copy_to_range(size_t offset, size_t n, cVec<T> v) {
-		cudaMemcpy(data+offset, v.data, n * sizeof(*data), cudaMemcpyDeviceToDevice);
-	}
-
+	T *raw_ptr() { return p.raw_ptr(); }
 };
+
+}
