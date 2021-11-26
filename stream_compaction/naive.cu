@@ -18,7 +18,8 @@ namespace Naive {
 		return timer;
 	}
 
-	__global__ void kern_scan(int d, int n, const int *__restrict__ in, int *__restrict__ out)
+	template <typename T>
+	__global__ void kern_scan(int d, int n, const T *__restrict__ in, T *__restrict__ out)
 	{
 		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
 		if (idx >= n)
@@ -50,6 +51,7 @@ namespace Naive {
 			checkCUDAError("kern_scan failed!");
 			std::swap(data_in, data_out);
 		}
+
 		timer().endGpuTimer();
 
 

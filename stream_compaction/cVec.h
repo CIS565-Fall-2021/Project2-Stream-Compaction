@@ -66,7 +66,7 @@ public:
 
 template <typename T>
 /* set n elements to val */
-void memset(cPtr<T> dst, const T val, size_t n = 1) {
+void set(cPtr<T> dst, const T val, size_t n = 1) {
 	cudaMemset(dst.raw_ptr(), val, n * sizeof(T));
 	checkCUDAError("cuda memset failed!");
 }
@@ -180,6 +180,11 @@ public:
 	cPtr<T> ptr() { return p; }
 
 	T *raw_ptr() { return p.raw_ptr(); }
+
+
+	/* TODO: add operator+ and other overloads that "decay" the vector to a cPtr for direct usage
+	 * e.g. for a vector v,   you can do set(v + (N-1), host_ptr, 1) instead of set(v.ptr() + (N-1),...)
+	 */
 };
 
 }

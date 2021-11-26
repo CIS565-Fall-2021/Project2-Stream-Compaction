@@ -16,16 +16,18 @@ namespace Efficient {
 	}
 
 
-	__global__ void kern_up_sweep(int d, int n, int *x)
+	template <typename T>
+	__global__ void kern_up_sweep(int d, int n, T *x)
 	{
 		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
 		int k = idx * (1 << (d+1));
 		if (k >= n)
 			return;
-		x[k + (1<<(d+1)) - 1] += x[k + (1<<d) - 1];
+		x[k + (1<<(d+1)) - 1] = x[k + (1<<(d+1)) - 1] + x[k + (1<<d) - 1];
 	}
 
-	__global__ void kern_down_sweep(int d, int n, int *x)
+	template <typename T>
+	__global__ void kern_down_sweep(int d, int n, T *x)
 	{
 		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
 		int k = idx * (1 << (d+1));
@@ -33,7 +35,7 @@ namespace Efficient {
 		int t = x[k+(1<<d)-1];
 		
 		x[k+(1<<d)-1] = x[k+(1<<(d+1))-1];
-		x[k+(1<<(d+1))-1] += t;
+		x[k+(1<<(d+1))-1] = t + x[k+(1<<(d+1))-1];
 	}
 
 
@@ -46,7 +48,7 @@ namespace Efficient {
 			dim3 fullBlocksPerGrid((count + blockSize - 1) / blockSize);
 			kern_up_sweep<<<fullBlocksPerGrid, blockSize>>>(d, N, dev_data->raw_ptr());
 		}
-		cu::memset(dev_data->ptr() + N-1, 0, 1);
+		cu::set(dev_data->ptr() + N-1, 0, 1);
 		for (int d = log2n - 1; d >= 0; d--) {
 			int count = N / (1 << d);
 			dim3 fullBlocksPerGrid((count + blockSize - 1) / blockSize);
@@ -82,7 +84,7 @@ namespace Efficient {
 
 
 	__global__ void kern_scatter(int n, const int *__restrict__ idata, const int *__restrict__ bdata,
-					const int *__restrict__ sdata, int *__restrict odata)
+					const int *__restrict__ sdata, int *__restrict__ odata)
 	{
 		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
 		if (idx >= n)
