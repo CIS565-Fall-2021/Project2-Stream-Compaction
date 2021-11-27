@@ -74,25 +74,6 @@ namespace Efficient {
 		cu::copy(odata, dev_data.ptr(), n);
 	}
 
-	__global__ void kern_bmap(int n, const int *__restrict__ idata, int *__restrict__ bdata)
-	{
-		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
-		if (idx >= n)
-			return;
-		bdata[idx] = bool(idata[idx]);
-	}
-
-
-	__global__ void kern_scatter(int n, const int *__restrict__ idata, const int *__restrict__ bdata,
-					const int *__restrict__ sdata, int *__restrict__ odata)
-	{
-		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
-		if (idx >= n)
-			return;
-		if (bdata[idx])
-			odata[sdata[idx]] = idata[idx];
-	}
-
 	/**
 	 * Performs stream compaction on idata, storing the result into odata.
 	 * All zeroes are discarded.
@@ -111,13 +92,12 @@ namespace Efficient {
 		timer().startGpuTimer();
 		
 		dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
-		kern_bmap<<<fullBlocksPerGrid, blockSize>>>(n, dev_idata.raw_ptr(), dev_bdata.raw_ptr());
+		Common::kernMapToBoolean<<<fullBlocksPerGrid, blockSize>>>(n, dev_bdata.raw_ptr(), dev_idata.raw_ptr());
 
 		cu::copy(dev_sdata.ptr(), dev_bdata.ptr(), n);
 		scan_dev(N, &dev_sdata);
 
-		kern_scatter<<<fullBlocksPerGrid, blockSize>>>(n, dev_idata.raw_ptr(), dev_bdata.raw_ptr(),
-			dev_sdata.raw_ptr(), dev_odata.raw_ptr());
+		Common::kernScatter<<<fullBlocksPerGrid, blockSize>>>(n, dev_odata.raw_ptr(), dev_idata.raw_ptr(), dev_bdata.raw_ptr(), dev_sdata.raw_ptr());
 
 		timer().endGpuTimer();
 
