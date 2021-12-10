@@ -4,7 +4,7 @@
 #include "efficient.h"
 #include "cVec.h"
 
-#define blockSize 4
+#define blockSize 128
 
 namespace StreamCompaction {
 namespace Efficient {
@@ -15,24 +15,14 @@ namespace Efficient {
 		return timer;
 	}
 
-
 	template <typename T>
-	__global__ void kern_up_sweep(int d, int n, T *x)
+	__global__ void kern_up_sweep(int n, T* x, int stride)
 	{
 		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
-		int k = idx * (1 << (d+1));
-		if (k >= n)
+		if (idx >= n || idx > n/stride/2)
 			return;
-		x[k + (1<<(d+1)) - 1] = x[k + (1<<(d+1)) - 1] + x[k + (1<<d) - 1];
-	}
 
-
-	template <typename T>
-	__global__ void kern_up_sweep2(int n, T* x)
-	{
-		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-		for (int stride = 1; stride < n; stride *= 2) {
+//		for (int stride = 1; stride < n; stride *= 2) {
 
 			int src = idx * stride * 2 + stride - 1;
 			int dst = src + stride;
@@ -41,31 +31,19 @@ namespace Efficient {
 				return;
 
 			x[dst] += x[src];
-			__syncthreads();
-		}
+//			__syncthreads();
+//		}
 	}
 
 
 	template <typename T>
-	__global__ void kern_down_sweep(int d, int n, T *x)
+	__global__ void kern_down_sweep(int n, T* x, int stride)
 	{
 		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
-		int k = idx * (1 << (d+1));
-
-		int t = x[k+(1<<d)-1];
-		
-		x[k+(1<<d)-1] = x[k+(1<<(d+1))-1];
-		x[k+(1<<(d+1))-1] = t + x[k+(1<<(d+1))-1];
-	}
-
-	template <typename T>
-	__global__ void kern_down_sweep2(int n, T* x)
-	{
-		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
-		if (idx >= n)
+		if (idx >= n || idx > n/stride/2)
 			return;
 
-		for (int stride = n/2; stride >= 1; stride /= 2) {
+//		for (int stride = n/2; stride >= 1; stride /= 2) {
 
 			int src = idx * stride * 2 + stride - 1;
 			int dst = src + stride;
@@ -75,32 +53,21 @@ namespace Efficient {
 				x[src] = x[dst];
 				x[dst] += src_val;
 			}
-			__syncthreads();
-		}
+//			__syncthreads();
+//		}
 	}
 
 	/* in-place scan over device array, doesn't start GPU Timer and assumes input is power of 2 */
-	void scan_dev(int N, cu::cVec<int> *dev_data) {
-		int log2n = ilog2ceil(N);
-		int fullBlocksPerGrid = (N + blockSize - 1)/blockSize;
-		for (int d = 0; d < log2n; d++) {
-			int count = N / (1 << d);
-			dim3 fullBlocksPerGrid((count + blockSize - 1) / blockSize);
-			kern_up_sweep<<<fullBlocksPerGrid, blockSize>>>(d, N, dev_data->raw_ptr());
-		}
-		cu::set(dev_data->ptr() + N-1, 0, 1);
-		for (int d = log2n - 1; d >= 0; d--) {
-			int count = N / (1 << d);
-			dim3 fullBlocksPerGrid((count + blockSize - 1) / blockSize);
-			kern_down_sweep<<<fullBlocksPerGrid, blockSize>>>(d, N, dev_data->raw_ptr());
-		}
-	}
+	void scan_dev(int N, cu::cVec<int>* dev_data) {
+		int blocks_per_grid = (N/2 + blockSize - 1) / blockSize;
 
-	void scan_dev2(int N, cu::cVec<int>* dev_data) {
-		int fullBlocksPerGrid = (N/2 + blockSize - 1) / blockSize;
-		kern_up_sweep2<<<fullBlocksPerGrid, blockSize>>>(N, dev_data->raw_ptr());
-		cu::set(dev_data->ptr() + N-1, 0, 1);
-		kern_down_sweep2<<<fullBlocksPerGrid, blockSize>>>(N, dev_data->raw_ptr());
+		for (int stride = 1; stride < N; stride *= 2) {
+			kern_up_sweep<<<blocks_per_grid, blockSize>>>(N, dev_data->raw_ptr(), stride);
+		}
+			cu::set(dev_data->ptr() + N-1, 0, 1);
+		for (int stride = N/2; stride >= 1; stride /= 2) {
+			kern_down_sweep<<<blocks_per_grid, blockSize>>>(N, dev_data->raw_ptr(), stride);
+		}
 	}
 
 
@@ -115,7 +82,7 @@ namespace Efficient {
 
 		timer().startGpuTimer();
 
-		scan_dev2(N, &dev_data);
+		scan_dev(N, &dev_data);
 
 		timer().endGpuTimer();
 
