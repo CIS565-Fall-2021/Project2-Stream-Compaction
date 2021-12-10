@@ -4,7 +4,7 @@
 #include "efficient.h"
 #include "cVec.h"
 
-#define blockSize 32
+#define blockSize 4
 
 namespace StreamCompaction {
 namespace Efficient {
@@ -26,6 +26,26 @@ namespace Efficient {
 		x[k + (1<<(d+1)) - 1] = x[k + (1<<(d+1)) - 1] + x[k + (1<<d) - 1];
 	}
 
+
+	template <typename T>
+	__global__ void kern_up_sweep2(int n, T* x)
+	{
+		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+		for (int stride = 1; stride < n; stride *= 2) {
+
+			int src = idx * stride * 2 + stride - 1;
+			int dst = src + stride;
+
+			if (dst >= n)
+				return;
+
+			x[dst] += x[src];
+			__syncthreads();
+		}
+	}
+
+
 	template <typename T>
 	__global__ void kern_down_sweep(int d, int n, T *x)
 	{
@@ -38,6 +58,26 @@ namespace Efficient {
 		x[k+(1<<(d+1))-1] = t + x[k+(1<<(d+1))-1];
 	}
 
+	template <typename T>
+	__global__ void kern_down_sweep2(int n, T* x)
+	{
+		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
+		if (idx >= n)
+			return;
+
+		for (int stride = n/2; stride >= 1; stride /= 2) {
+
+			int src = idx * stride * 2 + stride - 1;
+			int dst = src + stride;
+	
+			if (dst < n) {
+				int src_val = x[src];
+				x[src] = x[dst];
+				x[dst] += src_val;
+			}
+			__syncthreads();
+		}
+	}
 
 	/* in-place scan over device array, doesn't start GPU Timer and assumes input is power of 2 */
 	void scan_dev(int N, cu::cVec<int> *dev_data) {
@@ -56,6 +96,14 @@ namespace Efficient {
 		}
 	}
 
+	void scan_dev2(int N, cu::cVec<int>* dev_data) {
+		int fullBlocksPerGrid = (N/2 + blockSize - 1) / blockSize;
+		kern_up_sweep2<<<fullBlocksPerGrid, blockSize>>>(N, dev_data->raw_ptr());
+		cu::set(dev_data->ptr() + N-1, 0, 1);
+		kern_down_sweep2<<<fullBlocksPerGrid, blockSize>>>(N, dev_data->raw_ptr());
+	}
+
+
 	/**
 	 * Performs prefix-sum (aka scan) on idata, storing the result into odata.
 	 */
@@ -67,7 +115,7 @@ namespace Efficient {
 
 		timer().startGpuTimer();
 
-		scan_dev(N, &dev_data);
+		scan_dev2(N, &dev_data);
 
 		timer().endGpuTimer();
 
