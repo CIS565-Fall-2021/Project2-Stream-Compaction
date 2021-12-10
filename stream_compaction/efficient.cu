@@ -4,7 +4,7 @@
 #include "efficient.h"
 #include "cVec.h"
 
-#define blockSize 128
+#define blockSize 256
 
 namespace StreamCompaction {
 namespace Efficient {
@@ -59,13 +59,15 @@ namespace Efficient {
 
 	/* in-place scan over device array, doesn't start GPU Timer and assumes input is power of 2 */
 	void scan_dev(int N, cu::cVec<int>* dev_data) {
-		int blocks_per_grid = (N/2 + blockSize - 1) / blockSize;
+		int blocks_per_grid;
 
 		for (int stride = 1; stride < N; stride *= 2) {
+			blocks_per_grid = (N/stride/2 + blockSize - 1) / blockSize;
 			kern_up_sweep<<<blocks_per_grid, blockSize>>>(N, dev_data->raw_ptr(), stride);
 		}
 			cu::set(dev_data->ptr() + N-1, 0, 1);
 		for (int stride = N/2; stride >= 1; stride /= 2) {
+			blocks_per_grid = (N/stride/2 + blockSize - 1) / blockSize;
 			kern_down_sweep<<<blocks_per_grid, blockSize>>>(N, dev_data->raw_ptr(), stride);
 		}
 	}
