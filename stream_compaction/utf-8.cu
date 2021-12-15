@@ -38,25 +38,28 @@ typedef uint32_t rune
 	 */
 	size_t cpu_decode(const byte *in, size_t n, rune *out)
 	{
-		for (const byte* s = in, int count = 0; s < in + n; count++) {
+		const byte *s;
+		int count;
+
+		for (s = in, count = 0; s < in + n; count++, out++) {
 			if ((*s & 0x80) == 0) { /* 1-byte code-point */
-				*out++ = (rune) *s;
+				*out = (rune) s[0];
 				s++:
 			} else if ((*s & 0xe0) == 0xc0) { /* 2-byte code-point*/
-				*out++ = ((rune) (s[0] & 0x1f) << 6) | /* bytes from 110xxxxx */
-					 ((rune) (s[1] & 0x3f));       /* bytes from 10xxxxxx */
+				*out = ((rune) (s[0] & 0x1f) << 6) | /* bytes from 110xxxxx */
+				       ((rune) (s[1] & 0x3f));       /* bytes from 10xxxxxx */
 				s += 2;
 			} else if ((*s & 0xf0) == 0xe0) { /* 3-byte code-point */
-				*out++ = ((rune) (s[0] & 0x0f) << 12) | /* bytes from 1100xxxx */
-					 ((rune) (s[1] & 0x3f) <<  6) | /* bytes from 10xxxxxx */
-					 ((rune) (s[2] & 0x3f));        /* bytes from 10xxxxxx */
+				*out = ((rune) (s[0] & 0x0f) << 12) | /* bytes from 1100xxxx */
+				       ((rune) (s[1] & 0x3f) <<  6) | /* bytes from 10xxxxxx */
+				       ((rune) (s[2] & 0x3f));        /* bytes from 10xxxxxx */
 				s += 3;
 			} else {
 				/* this implementation assumes the encoding is valid and performs no checks here */
-				*out++ = ((rune) (s[0] & 0x07) << 18) | /* bytes from 11110xxxx */
-					 ((rune) (s[1] & 0x3f) << 12) | /* bytes from 10xxxxxxx */
-					 ((rune) (s[2] & 0x3f) <<  6) | /* bytes from 10xxxxxxx */
-					 ((rune) (s[3] & 0x3f));        /* bytes from 10xxxxxxx */
+				*out = ((rune) (s[0] & 0x07) << 18) | /* bytes from 11110xxxx */
+				       ((rune) (s[1] & 0x3f) << 12) | /* bytes from 10xxxxxxx */
+				       ((rune) (s[2] & 0x3f) <<  6) | /* bytes from 10xxxxxxx */
+				       ((rune) (s[3] & 0x3f));        /* bytes from 10xxxxxxx */
 				s += 4;
 			}
 		}
@@ -66,10 +69,23 @@ typedef uint32_t rune
 	/* encodes a list of n code-points from 'in', storing the output in 'out'
 	 * 'out' must be large enough to contain the output
 	 * 'in' must be a sequence of valid UTF-8 code-points (U+0000 to U+10FFFF or 0x0000 to 0x10FFFF)
-	 * 
+	 * returns the number of bytes written to output
 	 */
 	size_t cpu_encode(const rune *in, size_t n, byte *out)
 	{
+		const rune *s;
+		int count;
+
+		for (s = in, count = 0; s < in + n; s++, count++) {
+			if (s < 0x80) { /* 1-byte code point */
+				*out++ = (byte) (*s & 0x8f);
+			} else if (s < 0x800) {
+				*out++ = (byte) (((*s >> 6) & 0x1f) | 0xc0); /* bytes for 110xxxxx */
+				*out++ = (byte) (*s & 0x3f) | 0x80;          /* bytes for 10xxxxxx */
+			} else if (s < 0x10000) {
+				*out++ = (byte) (((*s >> 12) & 0x3f) | 0x0); /* TODO: these sections are incorrect */
+			}
+		}
 		
 	}
 
