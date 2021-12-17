@@ -181,10 +181,13 @@ public:
 
 	T *raw_ptr() { return p.raw_ptr(); }
 
+	/* "decay" to pointer when operating on an array
+	* e.g. for a vector v,   you can do set(v + (N-1), host_ptr, 1) instead of set(v.ptr() + (N-1),...)
+	*/
+	cPtr<T> operator+(size_t i) {return p + i;}
+	cPtr<T> operator-(size_t i) {return p - i;}
 
-	/* TODO: add operator+ and other overloads that "decay" the vector to a cPtr for direct usage
-	 * e.g. for a vector v,   you can do set(v + (N-1), host_ptr, 1) instead of set(v.ptr() + (N-1),...)
-	 */
+	/* TODO: overload other operator*/
 };
 
 }

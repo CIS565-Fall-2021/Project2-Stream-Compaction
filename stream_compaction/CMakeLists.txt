@@ -5,6 +5,7 @@ set(headers
     "efficient.h"
     "thrust.h"
     "radix_sort.h"
+    "utf-8.h"
     )
 
 set(sources
@@ -14,6 +15,7 @@ set(sources
     "efficient.cu"
     "thrust.cu"
     "radix_sort.cu"
+    "utf-8.cu"
     )
 
 list(SORT headers)

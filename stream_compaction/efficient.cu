@@ -57,20 +57,27 @@ namespace Efficient {
 //		}
 	}
 
-	/* in-place scan over device array, doesn't start GPU Timer and assumes input is power of 2 */
-	void scan_dev(int N, cu::cVec<int>* dev_data) {
+	/* in-place scan over device array, doesn't start GPU Timer and assumes input is power of 2
+	 * the zero value of T is assumed to be (T) 0
+	 */
+	template <typename T>
+	void scan_dev(int N, cu::cVec<T>* dev_data) {
 		int blocks_per_grid;
 
 		for (int stride = 1; stride < N; stride *= 2) {
 			blocks_per_grid = (N/stride/2 + blockSize - 1) / blockSize;
 			kern_up_sweep<<<blocks_per_grid, blockSize>>>(N, dev_data->raw_ptr(), stride);
 		}
-			cu::set(dev_data->ptr() + N-1, 0, 1);
+		cu::set(dev_data->ptr() + N-1, (T) 0, 1);
 		for (int stride = N/2; stride >= 1; stride /= 2) {
 			blocks_per_grid = (N/stride/2 + blockSize - 1) / blockSize;
 			kern_down_sweep<<<blocks_per_grid, blockSize>>>(N, dev_data->raw_ptr(), stride);
 		}
 	}
+
+	/* the scan_dev template is not exported in the header and must explicitly be instantiated */
+	template void scan_dev<int>(int, cu::cVec<int>*);
+	template void scan_dev<size_t>(int, cu::cVec<size_t>*);
 
 
 	/**

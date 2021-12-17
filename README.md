@@ -29,6 +29,9 @@ operation can also be used to implement sorting, with `radix sort`, which is als
 
 ## Scan
 
+
+The implementation of scan is templated to allow for both int and byte input arrays (byte array used for UTF-8 decoding)
+
 ## Compact
 
 ## Radix
@@ -43,7 +46,7 @@ these with compact to get a valid UTF-8 representation.
 As an added bonus, the encoder can detect invalid characters and substitute the Unicode Replacement character � (U+FFFD)
 
 
-##) Test Output
+## Test Output
 (put output here for a large array size)
 
 ---------
