@@ -46,6 +46,25 @@ these with compact to get a valid UTF-8 representation.
 As an added bonus, the encoder can detect invalid characters and substitute the Unicode Replacement character � (U+FFFD)
 
 
+
+
+#### Decoder
+For an input size of `n`, the decoder performs `O(n)` total operations.
+
+
+The current design could be extended to error handling. Specifically, we could have a kernel spawned per byte of input,
+which analyze the byte to check if it is at the start of a code-point and if so, check if the following bytes complete
+the code-point in a valid way and if that's the case, write a 1 to a corresponding array of bools for each of these
+bytes. Then, we could invert the array of bools and using it as a key, run compact on the input array to remove the
+bytes that are not part of valid code-points, producing a valid UTF-8 array. The difference in length between the
+original and compacted array gives the number of invalid bytes removed.
+
+Alternatively, it might be more desirable to explicitly show the incorrect bytes in the output, for example by
+substituting the Unicode Replacement Character � (U+FFFD). This can be accomplished by first determining all invalid
+bytes in the input as described above, then selecting the expansion offset as +4 similar to the original algorithm,
+adn then modifying the subsequent kernel call that compacts the bits so that it checks for invalid input and
+substitutes the U+FFFD character.
+
 ## Test Output
 (put output here for a large array size)
 

@@ -190,4 +190,6 @@ public:
 	/* TODO: overload other operator*/
 };
 
-}
+
+
+} /* namespace cu */

@@ -93,7 +93,7 @@ namespace UTF8 {
 		2, 2, 2, 2,					/* 110xxxxx */
 		3, 3,						/* 1110xxxx */
 		4,						/* 11110xxx */
-		0						/* invalid byte */
+		0						/* invalid byte */ /* FIXME: these are lengths not offsets. e.g. 0xxxxxxx has an offset of 4 from prev code-point b/c the characters has a length of 1 bytes*/
 	};
 
 	/* for each byte of input, writes the relative offset it should be placed in in the expanded UTF-8
@@ -106,12 +106,21 @@ namespace UTF8 {
 	 */
 	__global__ void kern_utf8_offsets(const byte* in, size_t n, size_t* offsets)
 	{
+		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
+		if (idx >= n)
+			return;						// FIXME  i thinj this needs to calc both offset and length. or msybe just length and use length to calc offset in scatter
 		
+		offsets[idx] = offset_lookup[in[idx] >> 3];
+	}
+
+	/* expands each code-point to 4 bytes, writing them to the appropriate location in out*/
+	__global__ void kern_utf8_scatter(const byte * in, size_t n, const size_t * offsets, byte* out)
+	{
 		int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
 		if (idx >= n)
 			return;
-		
-		offsets[idx] = offset_lookup[in[idx] >> 3];
+
+		out[offsets[idx]-1] = in[idx]; /* global offsets are with respect to -1 */
 	}
 
 
@@ -128,7 +137,6 @@ namespace UTF8 {
 
 		cu::cVec<byte> dev_in(n, in);
 		cu::cVec<size_t> offsets(N); /* because scan is exclusive, offsets[1:] is used after scan*/
-		cu::cVec<rune> dev_out(out_len, out);
 		
 		int block_count = ((n + block_size - 1) / block_size);
 
@@ -138,7 +146,16 @@ namespace UTF8 {
 		size_t length;
 		cu::copy(&length, offsets + n, 1);
 		length /= 4; /* number of code-points */
+
+		cu::cVec<byte> dev_expanded(length * 4); /* 4-byte expansions represented as a sequence of bytes */
+		cu::set<byte>(dev_expanded.ptr(), 0, length * 4);
+
+		kern_utf8_scatter<<<block_count, block_size>>>(dev_in.raw_ptr(), n, offsets.raw_ptr() + 1, dev_expanded.raw_ptr());
 		
+
+		cu::cVec<rune> dev_out(length);
+		cu::copy(out, dev_out.ptr(), length);
+
 		return length;
 	}
 }
