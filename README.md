@@ -66,7 +66,88 @@ adn then modifying the subsequent kernel call that compacts the bits so that it 
 substitutes the U+FFFD character.
 
 ## Test Output
-(put output here for a large array size)
+N = 2^24
+```
+****************
+** SCAN TESTS **                                                                                                        ****************
+[  40  24   0  29  16  10   6   0  10  10   7  10  15 ...  38   0 ]
+==== cpu scan, power-of-two ====
+elapsed time: 54.4685ms    (std::chrono Measured)
+[   0  40  64  64  93 109 119 125 125 135 145 152 162 ... 386716816 386716854 ]
+==== cpu scan, non-power-of-two ====                                                                                       
+elapsed time: 67.3799ms    (std::chrono Measured)                                                                       
+[   0  40  64  64  93 109 119 125 125 135 145 152 162 ... 386716768 386716800 ]                                         
+passed                                                                                                              
+==== naive scan, power-of-two ====                                                                                         
+elapsed time: 197.895ms    (CUDA Measured)                                                                               
+passed                                                                                                              
+==== naive scan, non-power-of-two ====                                                                                     
+elapsed time: 197.504ms    (CUDA Measured)                                                                               
+passed                                                                                                              
+==== work-efficient scan, power-of-two ====                                                                                
+elapsed time: 74.3567ms    (CUDA Measured)                                                                               
+passed                                                                                                              
+==== work-efficient scan, non-power-of-two ====                                                                            
+elapsed time: 74.111ms    (CUDA Measured)                                                                                
+passed                                                                                                              
+==== thrust scan, power-of-two ====                                                                                        
+elapsed time: 2229.07ms    (CUDA Measured)                                                                               
+passed                                                                                                              
+==== thrust scan, non-power-of-two ====                                                                                    
+elapsed time: 2224.75ms    (CUDA Measured)                                                                               
+passed                                                                                                                              
+*****************************                                                                                           
+** STREAM COMPACTION TESTS **   
+*****************************                                                                                               
+[   0   1   2   0   0   2   2   3   0   0   0   0   3 ...   0   0 ]                                                 
+==== cpu compact without scan, power-of-two ====                                                                           
+elapsed time: 167.942ms    (std::chrono Measured)                                                                        
+[   1   2   2   2   3   3   2   1   3   2   2   1   2 ...   3   2 ]                                                     
+passed                                                                                                              
+==== cpu compact without scan, non-power-of-two ====                                                                       
+elapsed time: 267.453ms    (std::chrono Measured)                                                                        
+[   1   2   2   2   3   3   2   1   3   2   2   1   2 ...   1   3 ]                                                     
+passed                                                                                                              
+==== cpu compact with scan ====                                                                                            
+elapsed time: 364.678ms    (std::chrono Measured)                                                                        
+[   1   2   2   2   3   3   2   1   3   2   2   1   2 ...   3   2 ]                                                     
+passed                                                                                                              
+==== work-efficient compact, power-of-two ====                                                                             
+elapsed time: 92.2182ms    (CUDA Measured)                                                                               
+passed                                                                                                              
+==== work-efficient compact, non-power-of-two ====                                                                         
+elapsed time: 91.914ms    (CUDA Measured)                                                                                
+passed                                                                                                              
+==== thrust compact, power-of-two ====                                                                                     
+elapsed time: 91.914ms    (CUDA Measured)                                                                                
+passed                                                                                                              
+==== work-efficient compact, non-power-of-two ====                                                                         
+elapsed time: 91.914ms    (CUDA Measured)                                                                                
+passed                   
+
+*****************************                                                                                           
+** RADIX SORT TEST **                                                                                                 
+*****************************    
+[ 2176510 238971848 427268424 345874100 22071882 53876664 93690960 91803616 16555815 541773164 18448217 67772704 508518232 ... 32860010 272354542 ]
+==== cpu radix using std::sort, power of two ====                                                                          
+elapsed time: 13524.7ms    (std::chrono Measured)                                                                        
+[   0   0   0   0   0   0   0   0   0   0   0   0   0 ... 1072890000 1072988290 ]                                   
+==== cpu radix using std::sort, non-power of two ====                                                                      
+elapsed time: 12362.3ms    (std::chrono Measured)                                                                        
+[   0   0   0   0   0   0   0   0   0   0   0   0   0 ... 1072890000 1072988290 ]                                   
+==== gpu radix, power of two ====                                                                                         
+elapsed time: 3073.04ms    (CUDA Measured)                                                                               
+[   0   0   0   0   0   0   0   0   0   0   0   0   0 ... 1072890000 1072988290 ]                                
+passed                                                                                                        
+==== gpu radix, non-power of two ====                                                                        
+elapsed time: 3074.25ms    (CUDA Measured)                                                                  
+[   0   0   0   0   0   0   0   0   0   0   0   0   0 ... 1072890000 1072988290 ]                        
+passed
+
+```
+Notes
+---------
+CMakeLists.txt has been edited to add the new dependencies `radix_sort.h`, `radix_sort.cu`, `utf-8.h`, and `utf-8.cu`.
 
 ---------
 Include analysis, etc. (Remember, this is public, so don't put
