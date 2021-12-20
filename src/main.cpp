@@ -1,8 +1,8 @@
 /**
  * @file      main.cpp
  * @brief     Stream compaction test program
- * @authors   Kai Ninomiya
- * @date      2015
+ * @authors   Kai Ninomiya, modified by Kaan Erdogmus
+ * @date      2015, 2021
  * @copyright University of Pennsylvania
  */
 
@@ -12,12 +12,14 @@
 #include <stream_compaction/efficient.h>
 #include <stream_compaction/thrust.h>
 #include "testing_helpers.hpp"
+#include "stream_compaction/radix_sort.h"
 
-const int SIZE = 1 << 8; // feel free to change the size of array
+const int SIZE = 1 << 24; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
 int *c = new int[SIZE];
+int *d = new int[SIZE];
 
 int main(int argc, char* argv[]) {
     // Scan tests
@@ -95,6 +97,7 @@ int main(int argc, char* argv[]) {
     //printArray(NPOT, c, true);
     printCmpResult(NPOT, b, c);
 
+
     printf("\n");
     printf("*****************************\n");
     printf("** STREAM COMPACTION TESTS **\n");
@@ -147,8 +150,70 @@ int main(int argc, char* argv[]) {
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
 
+    zeroArray(SIZE, c);
+    printDesc("thrust compact, power-of-two");
+    count = StreamCompaction::Thrust::compact(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(count, c, true);
+    printCmpLenResult(count, expectedCount, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("thrust compact, non-power-of-two");
+    count = StreamCompaction::Thrust::compact(NPOT, c, a);
+    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(count, c, true);
+    printCmpLenResult(count, expectedNPOT, b, c);
+
+
+
+    printf("\n");
+    printf("**********************\n");
+    printf("** RADIX SORT TESTS **\n");
+    printf("**********************\n");
+
+    // Radix sort tests
+
+    genArray(SIZE, a, 1<<30);
+    printArray(SIZE, a, true);
+
+    std::copy(a, a + SIZE, b);
+    printDesc("cpu radix using std::sort, power of two");
+    StreamCompaction::CPU::timer().startCpuTimer();
+    std::sort(b, b+SIZE);
+    StreamCompaction::CPU::timer().endCpuTimer();
+    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
+    printArray(SIZE, b, true);
+
+    std::copy(a, a + NPOT, c);
+    printDesc("cpu radix using std::sort, non-power of two");
+    StreamCompaction::CPU::timer().startCpuTimer();
+    std::sort(c, c+NPOT);
+    StreamCompaction::CPU::timer().endCpuTimer();
+    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
+    printArray(NPOT, c, true);
+
+    std::copy(a, a + SIZE, d);
+    printDesc("gpu radix, power of two");
+    Radix::sort(d, SIZE);
+    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printArray(SIZE, d, true);
+    printCmpResult(SIZE, b, d);
+
+    std::copy(a, a + SIZE, d);
+    printDesc("gpu radix, non-power of two");
+    Radix::sort(d, NPOT);
+    printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printArray(NPOT, d, true);
+    printCmpResult(NPOT, c, d);
+
+
+
+
+
+
     system("pause"); // stop Win32 console from closing on exit
     delete[] a;
     delete[] b;
     delete[] c;
+    delete[] d;
 }

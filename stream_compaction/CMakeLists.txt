@@ -4,6 +4,8 @@ set(headers
     "naive.h"
     "efficient.h"
     "thrust.h"
+    "radix_sort.h"
+    "utf-8.h"
     )
 
 set(sources
@@ -12,6 +14,8 @@ set(sources
     "naive.cu"
     "efficient.cu"
     "thrust.cu"
+    "radix_sort.cu"
+    "utf-8.cu"
     )
 
 list(SORT headers)
