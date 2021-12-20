@@ -17,6 +17,10 @@ also produces intermediary calculations that can be used for other algorithms. S
 in this project is `compact`, which removes elements from an array satisfying a specified predicate. The `scan`
 operation can also be used to implement sorting, with `radix sort`, which is also implemented as a part of this project.
 
+Another potential application of `scan` (and `compact`) is decoding/encoding UTF-8 text (implementation work-in-progress), which is detailed below.
+
+This project contains a custom templating library `cVec.h` written to provide an easier to use abstraction over CUDA memory management calls.
+
 ## Features Implemented
 * Scan CPU implementation
 * Compact CPU implementation
@@ -26,16 +30,22 @@ operation can also be used to implement sorting, with `radix sort`, which is als
 * Thrust's implementation of scan and compact (for benchmarking)
 * Radix Sort
 * UTF-8 decoding (work-in-progress)
+* Templating library for GPU memory `cVec.h`
 
 ## Scan
 
 
 The implementation of scan is templated to allow for both int and byte input arrays (byte array used for UTF-8 decoding)
-
+### Performance Analysis
+![scan times](visuals/scan.png)
 ## Compact
 
+### Performance Analysis
+![compact times](visuals/compact.png)
 ## Radix
 
+### Performance Analysis
+![radix times](visuals/compact.png)
 
 ## UTF-8 encoding
 UTF-8 encode can be performed using compact. Parallelize on the level of code-point (one kernel per code-point), with as little
@@ -48,7 +58,7 @@ As an added bonus, the encoder can detect invalid characters and substitute the 
 
 
 
-#### Decoder
+### Decoder
 For an input size of `n`, the decoder performs `O(n)` total operations.
 
 
