@@ -158,7 +158,7 @@ int main(int argc, char* argv[]) {
     printCmpLenResult(count, expectedCount, b, c);
 
     zeroArray(SIZE, c);
-    printDesc("work-efficient compact, non-power-of-two");
+    printDesc("thrust compact, non-power-of-two");
     count = StreamCompaction::Thrust::compact(NPOT, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     //printArray(count, c, true);
@@ -167,9 +167,9 @@ int main(int argc, char* argv[]) {
 
 
     printf("\n");
-    printf("*****************************\n");
-    printf("** RADIX SORT TEST **\n");
-    printf("*****************************\n");
+    printf("**********************\n");
+    printf("** RADIX SORT TESTS **\n");
+    printf("**********************\n");
 
     // Radix sort tests
 
