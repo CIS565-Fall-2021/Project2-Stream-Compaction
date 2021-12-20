@@ -121,7 +121,7 @@ passed
 ==== thrust compact, power-of-two ====                                                                                     
 elapsed time: 91.914ms    (CUDA Measured)                                                                                
 passed                                                                                                              
-==== work-efficient compact, non-power-of-two ====                                                                         
+==== thrust compact, non-power-of-two ====                                                                         
 elapsed time: 91.914ms    (CUDA Measured)                                                                                
 passed                   
 
