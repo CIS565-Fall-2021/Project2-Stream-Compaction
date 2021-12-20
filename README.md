@@ -76,35 +76,45 @@ This implementation of radix sort operates on the entire array at once, not usin
 
 Starting with array sizes of `2^16`, the radix sort implementation is distinctly faster than the comparison-based `std::sort` implementation.
 
-## UTF-8 encoding
+## UTF-8 encoding (work-in-progress)
+The following is (to the best of my knowledge) a novel method for decoding/encoding UTF-8 using CUDA, inspired by a [branchless UTF-8 Decoder](https://nullprogram.com/blog/2017/10/06/) on the CPU.
 
+For background regarding UTF-8 representation and encoding, refer to https://en.wikipedia.org/wiki/UTF-8.
 
-UTF-8 encode can be performed using compact. Parallelize on the level of code-point (one kernel per code-point), with as little
-divergence as possible. The kernel should read the code-point, determine how many bytes (1 to 4) are needed for its UTF-8
-representation, always output 4 bytes, substituting 0xFFFF (an invalid sequence in unicode) for the extra bytes, then remove
-these with compact to get a valid UTF-8 representation.
+### Decode
+UTF-8 text is represented as a sequence of bytes where the start of each code-point has a special binary representation, distinct from other bytes (this allows UTF-8 to be _self-synchronizing_). Furthmore, each code-point uses 1 to 4 bytes and the structure of first byte in each code-point also indicates the number of bytes in that code-point. As such, we can use a mapping followed by a scan to distribute the code-points to an expanded array of groups of 4 bytes, where each code-point is distributed to a group of 4 bytes with the leading bytes zeroed (e.g. a code-point consisting of a single byte is mapped to a group of 4 where the first 3 bytes are 0 and the last byte is the code-point's byte). Then, these groups of 4 bytes can be converted to the decoded int32 representation in parallel. The algorithm is as follows:
+1. Map each byte to the offset it should have from the previous byte in the expanded (4-byte) representation. For example,
+a byte of the form `0xxxxxxx` is a code-point with just one byte, and therefore maps to 4 (as it occupies the 4th position of the 4 bytes with the preceding 3 empty). Similarly the non-leading bytes `10xxxxxx` map to 1, the 2-byte code-point's first byte
+`110xxxxx` maps to 3 and so on.
+2. Perform an inclusive scan on the offsets to get the global offsets of each element (with respect to -1).
+3. Zero out an array large enough to contain the expanded (4-byte) representation and scatter each byte of the input using the
+global offsets calculated.
+4. For every pair of 4-bytes, convert them from the expanded representation to the numerical value of the code-point (ideally by using the branchless-decode algorithm).
 
-As an added bonus, the encoder can detect invalid characters and substitute the Unicode Replacement character � (U+FFFD)
+Steps 1-3 are currently implemented. The 4th step in particular can be made more efficient by producing a second array of lengths of the code-points (can also be implemented using scan), then using the lengths to find the byte (of the 4-bytes) where the expanded code-point begins and performing the branchless UTF-8 decode, storing the result in an array of `uint`s.
 
-
-
-
-### Decoder
 For an input size of `n`, the decoder performs `O(n)` total operations.
 
-
 The current design could be extended to error handling. Specifically, we could have a kernel spawned per byte of input,
-which analyze the byte to check if it is at the start of a code-point and if so, check if the following bytes complete
-the code-point in a valid way and if that's the case, write a 1 to a corresponding array of bools for each of these
-bytes. Then, we could invert the array of bools and using it as a key, run compact on the input array to remove the
+which analyzes the byte to check if it is at the start of a code-point and if so, checks if the following bytes complete
+the code-point in a valid way and if that's the case, writes a 1 to a corresponding array of bools. Then, we could invert the array of bools and using it as a key, run compact on the input array to remove the
 bytes that are not part of valid code-points, producing a valid UTF-8 array. The difference in length between the
 original and compacted array gives the number of invalid bytes removed.
 
 Alternatively, it might be more desirable to explicitly show the incorrect bytes in the output, for example by
 substituting the Unicode Replacement Character � (U+FFFD). This can be accomplished by first determining all invalid
-bytes in the input as described above, then selecting the expansion offset as +4 similar to the original algorithm,
-adn then modifying the subsequent kernel call that compacts the bits so that it checks for invalid input and
+bytes in the input as described above, then selecting the expansion offset as +4 (similar to the original algorithm),
+and then modifying the subsequent kernel call that compacts the bits so that it checks for invalid input and
 substitutes the U+FFFD character.
+
+### Encoder (not yet implemented)
+
+UTF-8 encode can also be performed using compact. Parallelize on the level of code-point (one kernel per code-point).
+The kernel should read the code-point, determine how many bytes (1 to 4) are needed for its UTF-8
+representation, and always output 4 bytes, substituting 0xFFFF (an invalid sequence in unicode) for the leading extra bytes, then compact can be run on the output (with a predicate of matching 0xFFFF) to remove this padding, producing a valid UTF-8 representation.
+
+As an added bonus, the encoder can quite trivially detect invalid characters (any numerical value larger than 0x10FFFF, corresponding to code-point U+10FFFF) and substitute the Unicode Replacement character � (U+FFFD).
+
 
 ## Test Output
 N = 2^24
