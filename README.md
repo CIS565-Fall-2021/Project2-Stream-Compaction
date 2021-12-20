@@ -27,27 +27,58 @@ This project contains a custom templating library `cVec.h` written to provide an
 * Naive GPU Scan implementation `O(n log n)`
 * Optimized Work-Efficient GPU Scan implementation `O(n)`
 * GPU Stream Compaction
-* Thrust's implementation of scan and compact (for benchmarking)
+* `thrust`'s implementation of scan and compact (for comparison)
 * Radix Sort
 * UTF-8 decoding (work-in-progress)
 * Templating library for GPU memory `cVec.h`
+* Naive CPU-parallel scan implementation (written in Go)
 
 ## Scan
+The scan algorithm for an array `a, b, c, ...` produces an array of partial sums `0, a, a+b, a+b+c, ...` (for exclusive-scan) or
+`a,a+b, a+b+c,...` (for inclusive-scan) where `+` is an arbitrary associative operator and `0` is the zero value for the type of the elements.
 
+The CPU implementation simply iterates over the array, keeping a sum of all elements thus far, saves it to the appropriate location in a new array and adds the next element from the source array. As such, it has `O(n)` operations performed.
 
-The implementation of scan is templated to allow for both int and byte input arrays (byte array used for UTF-8 decoding)
+The naive GPU implementation, in parallel, for each element adds the value preceding it, then the value 2 before it, then 4 before
+it, and so on. This produces an inclusive scan. There are `log(n)` steps and each step performs `n-1`, `n-2`, `n-3`, etc. operations so there are `O(n log(n))` operations performed.
+
+The work efficient scan implementation, in parallel, first adds to every other position the value that immediately precedes it, then to every 4th position, the value that precedes it by 2, then to every 8th position the value that precedes it by 4 elements and so on. This (for arrays whose length is a power of 2), results in the final element being the sum of all original elements. The structure is similar to a binary tree where only the left child's value is preserved (and the right child becomes the element itself). To produce an array of partial sums, a down-sweep operation is performed which, after setting the top of the tree (the last element) to 0, goes down the tree, moving the value of the left child to the current node and adding the (previous) value of the current node to the left child. The down-sweep is parallelized for each layer of the tree.
+
+The implementation of scan is templated to allow for both int and byte input arrays (byte array used for UTF-8 decoding).
+
 ### Performance Analysis
 ![scan times](visuals/scan.png)
+
+As shown in the diagram, the CPU implementation of scan is measured to clearly dominate for array sizes smaller than `2^16` with the Work-efficient implementation fully catching up at `2^26`. Furthermore, there is a clear difference in performance between the naive and work-efficient scans as expected since the naive implementation performs an asymptotically greater number of operations.
+
 ## Compact
+The compact operation, given an input array and a predicate on the elements, produces an array of all elements not satisfying the
+predicate, effectively removing elements not fitting a criteria. This is performed by first mapping the input to an array of bools (where an element to be kept produces `true`), scanning the array of bools which yields the indices the kept elements should go
+in the compacted array, and finally scattering the original elements into the new array by using the indices calculated (and performing a write only if the element does not satisfy the predicate).
 
 ### Performance Analysis
 ![compact times](visuals/compact.png)
-## Radix
+
+Starting with a size of `2^16`, the GPU implementations are clearly superior to the CPU implementations of compact and the work-efficient implementation of compact closely matches `thrust`'s implementation.
+
+## Radix Sort
+Radix sort is a sorting algorithm for elements that can be readily grouped together into chunks. Specifically, this implementation
+considers the bits 0 through 31 of the integers of the input array (negative values not considered). For a given bit, radix sort moves the elements of the array so that they are sorted with respect to that bit. Performing this through all the bits produces an
+array of integers that is fully sorted.
+
+To sort a particular bit, the `split` operations is performed which extracts and inverts the relevant bit of each element into an array of bools, then scans this array, calculates the number of total false bits from the last element of this array. Then, a new array of positionsis constructed where if the selected bit is false for an element, it is mapped to the scanned value. Otherwise it is mapped to `index - f + total_false` where `f` is the scanned array.  This produces an array of (unique) positions, which we
+can use to scatter the original inputs to places where they are sorted with respect to the bit.
+
+This implementation of radix sort operates on the entire array at once, not using shared memory.
 
 ### Performance Analysis
-![radix times](visuals/compact.png)
+![radix times](visuals/radix.png)
+
+Starting with array sizes of `2^16`, the radix sort implementation is distinctly faster than the comparison-based `std::sort` implementation.
 
 ## UTF-8 encoding
+
+
 UTF-8 encode can be performed using compact. Parallelize on the level of code-point (one kernel per code-point), with as little
 divergence as possible. The kernel should read the code-point, determine how many bytes (1 to 4) are needed for its UTF-8
 representation, always output 4 bytes, substituting 0xFFFF (an invalid sequence in unicode) for the extra bytes, then remove
@@ -158,8 +189,3 @@ passed
 Notes
 ---------
 CMakeLists.txt has been edited to add the new dependencies `radix_sort.h`, `radix_sort.cu`, `utf-8.h`, and `utf-8.cu`.
-
----------
-Include analysis, etc. (Remember, this is public, so don't put
-anything here that you don't want to share with the world.)
-
